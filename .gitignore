@@ -1,0 +1,17 @@
+# Runtime
+.server.pid
+server.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Node
+node_modules/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/

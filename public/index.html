@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>cYHBer console</title>
+    <link rel="icon" href="data:," />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Share+Tech+Mono&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="noise"></div>
+    <div class="grid"></div>
+    <main class="shell">
+      <section class="hero panel scanlines">
+        <div class="hero__header">
+          <div>
+            <p class="eyebrow">Neural Access Layer</p>
+            <h1>cYHBer console</h1>
+          </div>
+          <div class="status-badge" id="statusBadge">
+            <span class="status-dot"></span>
+            <span id="statusText">Sin verificar</span>
+          </div>
+        </div>
+
+        <div class="hero__body">
+          <div class="hero__signature">
+            <pre class="ascii-skull" aria-hidden="true">
+        .ed"""" """$$$$be.
+      -"           ^""**$$$e.
+    ."                   '$$$c
+   /                      "4$$b
+  d  3                      $$$$
+  $  *                   .$$$$$$
+ .$  ^c           $$$$$e$$$$$$$$.
+ d$L  4.         4$$$$$$$$$$$$$$b
+ $$$$b ^ceeeee.  4$$ECL.F*$$$$$$$
+ $$$$P d$$$$F $ $$$$$$$$$- $$$$$$
+ 3$$$F "$$$$b   $"$$$$$$$  $$$$*"
+  $$P"  "$$b   .$ $$$$$...e$$
+   *c    ..    $$ 3$$$$$$$$$$eF
+     %ce""    $$$  $$$$$$$$$$*
+      *$e.    *** d$$$$$"L$$
+       $$$      4J$$$$$% $$$
+      $""$=e....$*$**$cz$$"
+      $  *=%4.$ L L$ P3$$$F
+      $   "%*ebJLzb$e$$$$$b
+       %..      4$$$$$$$$$$
+        $$$e   z$$$$$$$$$$$
+         "*$c  "$$$$$$$P"
+          ."""*$$$$$$$$bc
+       .-"    .$***$$$"""*e.
+    .-"    .e$"     "*$c  ^*b.
+ .="     .dP"          "*c   "9
+            </pre>
+            <div class="version-tag">V1</div>
+          </div>
+
+          <div class="hero__meta">
+            <div class="meta-card">
+              <span class="meta-label">Modelo</span>
+              <strong id="modelName">huihui_ai/qwen3.5-abliterated:9b</strong>
+            </div>
+            <div class="meta-card">
+              <span class="meta-label">Puerto Ollama</span>
+              <strong id="modelPort">11434</strong>
+            </div>
+            <div class="meta-card">
+              <span class="meta-label">Canal</span>
+              <strong>Localhost secure link</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard">
+        <div class="panel stats-panel">
+          <div class="stat">
+            <span class="stat__label">Mensajes</span>
+            <strong class="stat__value" id="messageCount">0</strong>
+          </div>
+          <div class="stat">
+            <span class="stat__label">Sesion</span>
+            <strong class="stat__value" id="sessionState">Lista</strong>
+          </div>
+          <div class="stat">
+            <span class="stat__label">Latencia UI</span>
+            <strong class="stat__value">Realtime</strong>
+          </div>
+        </div>
+
+        <div class="panel chat-panel">
+          <div class="chat-panel__header">
+            <div>
+              <p class="eyebrow">Console Feed</p>
+              <h2>Interfaz enlazada a Ollama</h2>
+            </div>
+            <button id="clearButton" class="ghost-button" type="button">
+              Limpiar chat
+            </button>
+          </div>
+
+          <div id="chatLog" class="chat-log" aria-live="polite"></div>
+
+          <form id="chatForm" class="composer">
+            <label class="composer__field">
+              <span class="sr-only">Mensaje</span>
+              <textarea
+                id="promptInput"
+                rows="3"
+                placeholder="Escribe tu mensaje para el modelo local..."
+                required
+              ></textarea>
+            </label>
+            <div class="composer__actions">
+              <button id="sendButton" class="primary-button" type="submit">
+                Enviar a Ollama
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <template id="messageTemplate">
+      <article class="message">
+        <div class="message__chrome">
+          <span class="message__role"></span>
+          <span class="message__time"></span>
+        </div>
+        <p class="message__content"></p>
+      </article>
+    </template>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

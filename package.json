@@ -1,0 +1,12 @@
+{
+  "name": "ollama-hacker-ui",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Interfaz web estilo hacker para un modelo local de Ollama.",
+  "scripts": {
+    "start": "python hack.py start",
+    "stop": "python hack.py stop",
+    "status": "python hack.py status",
+    "restart": "python hack.py restart"
+  }
+}
