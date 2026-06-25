@@ -1,194 +1,86 @@
-# cYHBer console
+# cYHBer Console 💀
 
 ![Portada](public/img/hack1.png)
 
-Interfaz web local estilo hacker conectada a `Ollama` con modelos **abliterated** (sin censura), streaming token por token, historial local y estado del servidor en tiempo real.
+Una interfaz web local estilo cyberpunk / hacker conectada a `Ollama` que soporta **Agentes Autónomos (Tool Calling)**, **modelos abliterated** (sin censura), streaming fluido en tiempo real, y una arquitectura segura "Zero-Dependency" (sin módulos externos npm).
 
-## Descripcion
+## 🔥 Novedades y Características
 
-Levanta una web en `http://127.0.0.1:3000` conectada a `Ollama` en `http://127.0.0.1:11434`.
+- **UI Cyberpunk:** Efectos de interferencia (glitch), scanlines y animaciones retro.
+- **Motor de Agentes (Tools):** El modelo puede ejecutar acciones reales en tu computadora si activas el modo agente:
+  - `web_fetch`: Leer artículos de internet.
+  - `web_search`: Buscar en internet vía DuckDuckGo.
+  - `read_file` / `write_file` / `list_directory`: Operar en tu sistema de archivos (con Sandboxing).
+  - `run_command`: Ejecutar comandos en PowerShell.
+- **Seguridad (Sandboxing):** 
+  - Prevención de Directory Traversal (la IA no puede escapar del directorio del proyecto).
+  - Bloqueo SSRF (la IA no puede escanear tu red local usando `web_fetch`).
+  - Rate Limiting y protección contra payloads gigantes.
+- **Selector en Vivo:** Cambia de modelo al vuelo desde la interfaz sin tener que reiniciar el servidor.
 
-- UI cyberpunk con glitch effects y scanlines.
-- Streaming de respuesta token por token.
-- Estado online/offline de Ollama en vivo.
-- Historial local en navegador (localStorage).
-- Control del servidor con `hack start/stop/status/restart`.
+---
 
-## Modelos abliterated (sin censura)
+## 🛠 Instalación Rápida
 
-### Detectar modelos en tu sistema
+### 1. Instalar Prerrequisitos
+Asegúrate de tener instalados:
+- **[Node.js](https://nodejs.org/es/)** (Cualquier versión reciente).
+- **[Ollama](https://ollama.com/download)**.
 
-```powershell
-python detect-abliterated.py
-```
-
-### Modelos disponibles
-
-| # | Modelo | Params | Tamano | Velocidad CPU | Predeterminado |
-|---|--------|--------|--------|---------------|----------------|
-| 1 | `richardyoung/qwen2.5-3b-instruct-abliterated` | 3.1B | 1.9 GB | Rapido | **SI** |
-| 2 | `kaineone/qwen3.5-4b-abliterated` | 4B | 2.8 GB | Medio | - |
-| 3 | `huihui_ai/qwen3.5-abliterated:9b` | 9.7B | 6.6 GB | Lento | - |
-
-### Descargar un modelo
+### 2. Descargar los Modelos
+Abre tu terminal (PowerShell o CMD) y descarga los modelos recomendados. El sistema detectará automáticamente los que tengas instalados.
 
 ```powershell
-# Opcion 1: 3B (recomendado para CPU)
+# Opción 1: Ligero y Rápido (Recomendado para uso diario)
+ollama pull qwen2.5:7b
+
+# Opción 2: Abliterated (Sin censura) - 3B
 ollama pull richardyoung/qwen2.5-3b-instruct-abliterated
 
-# Opcion 2: 4B
+# Opción 3: Abliterated - 4B
 ollama pull kaineone/qwen3.5-4b-abliterated
-
-# Opcion 3: 9B (requiere GPU o mucha RAM)
-ollama pull huihui_ai/qwen3.5-abliterated:9b
 ```
 
-### Cambiar modelo activo
+*(Nota: Asegúrate de que Ollama esté corriendo en segundo plano, por defecto en el puerto `11434`)*
+
+### 3. Iniciar el Servidor de cYHBer Console
+Clona o descarga esta carpeta, abre una terminal dentro del directorio del proyecto y ejecuta:
 
 ```powershell
-$env:OLLAMA_MODEL='richardyoung/qwen2.5-3b-instruct-abliterated'
-hack start
+node server.js
 ```
 
-## Requisitos
+### 4. Entrar al Sistema
+Abre tu navegador web y entra a:
+👉 **[http://127.0.0.1:4000](http://127.0.0.1:4000)**
 
-- Windows con PowerShell
-- Node.js
-- Python 3
-- Ollama
+---
 
-## Instalacion rapida
+## 🏗 Arquitectura del Proyecto
 
-### 1. Instalar Ollama
-
-Descarga desde [https://ollama.com/download](https://ollama.com/download).
-
-```powershell
-ollama --version
-```
-
-### 2. Descargar modelo abliterated
-
-```powershell
-ollama pull richardyoung/qwen2.5-3b-instruct-abliterated
-```
-
-### 3. Iniciar Ollama
-
-```powershell
-ollama serve --port 11434
-```
-
-### 4. Iniciar la interfaz
-
-```powershell
-hack start
-```
-
-### 5. Abrir en el navegador
-
-```
-http://127.0.0.1:3000
-```
-
-## Estructura
+Este proyecto no requiere `npm install` porque utiliza únicamente módulos nativos de Node (`http`, `fs`, `path`, etc.) para máxima velocidad y seguridad.
 
 ```text
 cYHBeriteratus/
-├─ public/
-│  ├─ img/
-│  │  └─ hack1.png
-│  ├─ app.js
-│  ├─ index.html
-│  └─ styles.css
-├─ detect-abliterated.py    # Detecta modelos abliterated locales
-├─ hack.py
-├─ hack.bat
-├─ package.json
-├─ server.js
-├─ start-ui.bat
-├─ .gitignore
-└─ README.md
+├─ server.js           # Punto de entrada principal (Loop de Eventos)
+├─ tools.js            # Lógica de las herramientas del agente (Sandboxing)
+├─ src/
+│  ├─ config.js        # Configuraciones globales y variables de entorno
+│  ├─ utils/
+│  │  └─ logger.js     # Sistema de log estructurado en consola
+│  ├─ middlewares/
+│     ├─ security.js   # Rate-limiting y CSP (Security Headers)
+│     └─ validator.js  # Defensa contra ataques de payload y validación JSON
+├─ public/             # Archivos frontend estáticos
+│  ├─ index.html       # UI Base
+│  ├─ styles.css       # Animaciones Cyberpunk
+│  ├─ app.js           # Lógica frontend (Streaming y chat history)
+│  └─ img/
 ```
 
-## Comandos
+## 🔒 Modo Agente (Tool Calling)
+En la parte superior derecha de la pantalla encontrarás un **Switch (Toggle)** para activar el "MODO AGENTE (TOOLS)".
+- **APAGADO:** El modelo actúa como un ChatGPT estándar (respuestas de texto normales, rápidas).
+- **ENCENDIDO:** El modelo pensará antes de responder y podrá decidir usar herramientas del sistema (buscar en la red, correr scripts, etc.) para cumplir tu orden. 
 
-### Python
-
-```powershell
-python hack.py start
-python hack.py stop
-python hack.py status
-python hack.py restart
-```
-
-### Windows (abreviado)
-
-```powershell
-hack start
-hack stop
-hack status
-hack restart
-```
-
-### npm
-
-```powershell
-npm start
-npm run stop
-npm run status
-npm run restart
-```
-
-## Variables de entorno
-
-| Variable | Descripcion | Default |
-|----------|-------------|---------|
-| `APP_PORT` | Puerto de la web | `3000` |
-| `OLLAMA_HOST` | Host de Ollama | `127.0.0.1` |
-| `OLLAMA_PORT` | Puerto de Ollama | `11434` |
-| `OLLAMA_MODEL` | Modelo a usar | `richardyoung/qwen2.5-3b-instruct-abliterated` |
-| `OLLAMA_TIMEOUT_MS` | Timeout hacia Ollama | `120000` |
-
-Ejemplo:
-
-```powershell
-$env:APP_PORT=3001
-$env:OLLAMA_MODEL='huihui_ai/qwen3.5-abliterated:9b'
-hack start
-```
-
-## Solucion de problemas
-
-**Puerto 3000 ocupado:**
-```powershell
-hack stop
-```
-
-**Otro puerto:**
-```powershell
-$env:APP_PORT=3001
-hack start
-```
-
-**Verificar estado de Ollama:**
-```powershell
-curl http://127.0.0.1:11434/api/tags
-```
-
-**Probar modelo directo:**
-```powershell
-curl http://127.0.0.1:11434/api/chat -d "{\"model\":\"richardyoung/qwen2.5-3b-instruct-abliterated\",\"stream\":true,\"messages\":[{\"role\":\"user\",\"content\":\"responde solo OK\"}]}"
-```
-
-## Stack
-
-- **Backend:** Node.js (http nativo)
-- **Frontend:** HTML, CSS, JavaScript vanilla
-- **IA:** Ollama + modelos abliterated (Qwen)
-- **Control:** Python (hack.py)
-- **Estilo:** Cyberpunk/Hacker UI
-
-## Licencia
-
-Uso local y personal.
+> **Advertencia:** El modelo puede modificar archivos dentro del proyecto. ¡Úsalo bajo tu propia responsabilidad!

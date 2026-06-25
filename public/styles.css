@@ -733,6 +733,147 @@ body {
   animation: screenFlicker 8s linear infinite;
 }
 
+/* ── Toggle Switch ── */
+.agent-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.agent-toggle__label {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-switch .slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(15, 2, 2, 0.9);
+  border: 1px solid rgba(180, 30, 30, 0.3);
+  transition: .4s;
+  border-radius: 24px;
+}
+
+.toggle-switch .slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background-color: var(--muted);
+  transition: .4s;
+  border-radius: 50%;
+}
+
+.toggle-switch input:checked + .slider {
+  background-color: rgba(180, 20, 20, 0.2);
+  border-color: var(--accent);
+}
+
+.toggle-switch input:checked + .slider:before {
+  transform: translateX(20px);
+  background-color: var(--accent-2);
+  box-shadow: 0 0 10px var(--accent-2);
+}
+
+/* ── Tool Messages ── */
+.message--tool {
+  border-color: rgba(100, 150, 200, 0.3);
+  background: rgba(4, 10, 15, 0.85);
+}
+
+.message--tool .message__role {
+  color: #5599ff;
+}
+
+.tool-content {
+  margin-top: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 8px;
+  padding: 10px;
+  border: 1px solid rgba(100, 150, 200, 0.2);
+}
+
+.tool-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+.tool-name {
+  color: #66b3ff;
+  font-weight: bold;
+}
+
+.tool-status {
+  color: #ff9900;
+  font-size: 0.8rem;
+}
+
+.tool-status.success {
+  color: #00cc66;
+}
+
+.tool-status.error {
+  color: #ff3344;
+}
+
+.tool-result {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(100, 150, 200, 0.2);
+  font-size: 0.8rem;
+  color: #aaddff;
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.tool-result::-webkit-scrollbar {
+  width: 6px;
+}
+.tool-result::-webkit-scrollbar-thumb {
+  background: rgba(100, 150, 200, 0.4);
+  border-radius: 3px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.spinner {
+  animation: pulseOpacity 1.5s infinite;
+}
+
+@keyframes pulseOpacity {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 @media (max-width: 860px) {
   .shell {
     width: min(100% - 18px, 1200px);

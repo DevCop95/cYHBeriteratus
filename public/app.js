@@ -6,7 +6,9 @@ const sendButton = document.getElementById("sendButton");
 const statusBadge = document.getElementById("statusBadge");
 const statusText = document.getElementById("statusText");
 const messageTemplate = document.getElementById("messageTemplate");
+const toolTemplate = document.getElementById("toolTemplate");
 const modelSelect = document.getElementById("modelSelect");
+const agentModeToggle = document.getElementById("agentModeToggle");
 const chatTimeoutMs = 180000;
 const streamIdleTimeoutMs = 120000;
 
@@ -40,6 +42,28 @@ function formatTime(value = new Date()) {
 }
 
 function createMessageNode(entry) {
+  if (entry.role === "tool_call" || entry.role === "tool_result") {
+    // Handled dynamically during streaming, but if loaded from history:
+    const fragment = toolTemplate.content.cloneNode(true);
+    const article = fragment.querySelector(".message");
+    const time = fragment.querySelector(".message__time");
+    const toolName = fragment.querySelector(".tool-name");
+    const toolStatus = fragment.querySelector(".tool-status");
+    const toolResult = fragment.querySelector(".tool-result");
+
+    time.textContent = entry.time || formatTime();
+    toolName.textContent = entry.name;
+    toolStatus.textContent = entry.role === "tool_call" ? "Ejecutando..." : (entry.success ? "Completado" : "Error");
+    toolStatus.className = `tool-status ${entry.role === "tool_call" ? "spinner" : (entry.success ? "success" : "error")}`;
+    
+    if (entry.content) {
+      toolResult.textContent = entry.content;
+      toolResult.classList.remove("hidden");
+    }
+    article.dataset.role = entry.role;
+    return article;
+  }
+
   const fragment = messageTemplate.content.cloneNode(true);
   const article = fragment.querySelector(".message");
   const role = fragment.querySelector(".message__role");
@@ -117,13 +141,12 @@ function setStatus({ ok, model, port, error, modelLoaded, availableModels }) {
     statusBadge.classList.add("online");
     statusText.innerHTML = githubSvg + 'DEV101';
 
-    const abliteratedModels = (availableModels || []).filter(name =>
-      name.toLowerCase().includes("abliterated")
-    );
+    const allModels = availableModels || [];
 
-    if (abliteratedModels.length > 0) {
-      modelSelect.innerHTML = abliteratedModels.map(name =>
-        `<option value="${name}" ${name === model ? "selected" : ""}>${name}</option>`
+    if (allModels.length > 0) {
+      const activeModel = selectedModel || model;
+      modelSelect.innerHTML = allModels.map(name =>
+        `<option value="${name}" ${name === activeModel ? "selected" : ""}>${name}</option>`
       ).join("");
       modelSelect.disabled = false;
 
@@ -131,7 +154,7 @@ function setStatus({ ok, model, port, error, modelLoaded, availableModels }) {
         selectedModel = model;
       }
     } else {
-      modelSelect.innerHTML = '<option value="">No hay modelos abliterated</option>';
+      modelSelect.innerHTML = '<option value="">No hay modelos instalados</option>';
       modelSelect.disabled = true;
     }
   } else {
@@ -180,7 +203,7 @@ async function sendMessage(content) {
   if (!modelToUse) {
     const failureEntry = {
       role: "assistant",
-      content: "&#x2620; FALLO: Selecciona un modelo abliterated primero.",
+      content: "&#x2620; FALLO: Selecciona un modelo primero.",
       time: formatTime(),
     };
     messages.push(failureEntry);
@@ -204,7 +227,7 @@ async function sendMessage(content) {
     let response;
 
     try {
-      response = await fetch("/api/chat-stream", {
+      response = await fetch("/api/chat-agent", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -212,7 +235,8 @@ async function sendMessage(content) {
         signal: controller.signal,
         body: JSON.stringify({
           model: modelToUse,
-          messages: messages.map(({ role, content: messageContent }) => ({
+          agentMode: agentModeToggle ? agentModeToggle.checked : false,
+          messages: messages.filter(m => m.role === "user" || m.role === "assistant").map(({ role, content: messageContent }) => ({
             role,
             content: messageContent,
           })),
@@ -238,6 +262,7 @@ async function sendMessage(content) {
     let buffer = "";
     let fullContent = "";
     let streamDone = false;
+    let toolUsed = false;
 
     const readWithTimeout = async () => {
       let timeoutId;
@@ -273,13 +298,55 @@ async function sendMessage(content) {
         const event = JSON.parse(line);
 
         if (event.type === "token" && event.content) {
-          if (fullContent.length === 0) {
+          if (fullContent.length === 0 && assistantEntry.content === "[CONECTANDO] Estableciendo enlace oscuro...") {
             assistantEntry.content = "";
+            assistantContent.textContent = "";
           }
           fullContent += event.content;
           assistantEntry.content = fullContent;
           assistantContent.textContent = fullContent;
           chatLog.scrollTop = chatLog.scrollHeight;
+        }
+
+        if (event.type === "tool_call") {
+          toolUsed = true;
+          if (fullContent.length === 0 && assistantEntry.content === "[CONECTANDO] Estableciendo enlace oscuro...") {
+            assistantEntry.content = "";
+            assistantContent.textContent = "";
+          }
+
+          const fragment = toolTemplate.content.cloneNode(true);
+          const article = fragment.querySelector(".message");
+          const time = fragment.querySelector(".message__time");
+          const toolName = fragment.querySelector(".tool-name");
+          const toolResultNode = fragment.querySelector(".tool-result");
+          
+          time.textContent = formatTime();
+          toolName.textContent = `[Tool] ${event.name}(${JSON.stringify(event.arguments)})`;
+          
+          // Insert before the currently building assistant message
+          chatLog.insertBefore(article, assistantNode);
+          chatLog.scrollTop = chatLog.scrollHeight;
+          
+          // Keep a reference to update it later
+          event._articleNode = article;
+        }
+
+        if (event.type === "tool_result") {
+          // Update the last tool_call node (simplistic tracking)
+          const toolNodes = chatLog.querySelectorAll(".message--tool");
+          if (toolNodes.length > 0) {
+            const lastToolNode = toolNodes[toolNodes.length - 1];
+            const status = lastToolNode.querySelector(".tool-status");
+            const result = lastToolNode.querySelector(".tool-result");
+            
+            status.textContent = event.success ? "Completado" : "Error";
+            status.className = `tool-status ${event.success ? "success" : "error"}`;
+            
+            result.textContent = event.content;
+            result.classList.remove("hidden");
+            chatLog.scrollTop = chatLog.scrollHeight;
+          }
         }
 
         if (event.type === "error") {
@@ -293,9 +360,15 @@ async function sendMessage(content) {
       }
     }
 
-    if (!fullContent.trim()) {
+    if (!fullContent.trim() && !toolUsed) {
       assistantEntry.content = "[ERROR] El modelo no respondio. Posible interferencia.";
       assistantContent.textContent = assistantEntry.content;
+    } else if (!fullContent.trim() && toolUsed) {
+      // Clear placeholder if tools were used but no final text was given
+      if (assistantEntry.content === "[CONECTANDO] Estableciendo enlace oscuro...") {
+        assistantEntry.content = "";
+        assistantContent.textContent = "";
+      }
     }
 
     saveMessages();

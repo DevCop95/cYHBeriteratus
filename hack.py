@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent
 PID_FILE = ROOT / ".server.pid"
 LOG_FILE = ROOT / "server.log"
 HOST = "127.0.0.1"
-PORT = int(os.environ.get("APP_PORT", "3000"))
+PORT = int(os.environ.get("APP_PORT", "4000"))
 
 
 def is_port_open(host: str, port: int, timeout: float = 0.5) -> bool:

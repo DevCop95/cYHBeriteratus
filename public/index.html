@@ -31,10 +31,18 @@
           </div>
 
           <div class="model-selector">
-            <label for="modelSelect" class="model-selector__label">MODELO ABLITERATED</label>
+            <label for="modelSelect" class="model-selector__label">MODELO LOCAL</label>
             <select id="modelSelect" class="model-selector__select" disabled>
               <option value="">Cargando modelos...</option>
             </select>
+            
+            <div class="agent-toggle">
+              <label class="toggle-switch">
+                <input type="checkbox" id="agentModeToggle" checked>
+                <span class="slider"></span>
+              </label>
+              <span class="agent-toggle__label">MODO AGENTE (TOOLS)</span>
+            </div>
           </div>
 
         <div class="hero__body">
@@ -93,6 +101,22 @@
           <span class="message__time"></span>
         </div>
         <p class="message__content"></p>
+      </article>
+    </template>
+
+    <template id="toolTemplate">
+      <article class="message message--tool">
+        <div class="message__chrome">
+          <span class="message__role">&#x1F6E0; SISTEMA</span>
+          <span class="message__time"></span>
+        </div>
+        <div class="message__content tool-content">
+          <div class="tool-header">
+            <span class="tool-name"></span>
+            <span class="tool-status spinner">Ejecutando...</span>
+          </div>
+          <pre class="tool-result hidden"></pre>
+        </div>
       </article>
     </template>
 
