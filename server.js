@@ -7,9 +7,9 @@ const HOST = "127.0.0.1";
 const APP_PORT = Number(process.env.APP_PORT || 3000);
 const OLLAMA_HOST = process.env.OLLAMA_HOST || "127.0.0.1";
 const OLLAMA_PORT = Number(process.env.OLLAMA_PORT || 11434);
-const OLLAMA_TIMEOUT_MS = Number(process.env.OLLAMA_TIMEOUT_MS || 45000);
+const OLLAMA_TIMEOUT_MS = Number(process.env.OLLAMA_TIMEOUT_MS || 120000);
 const OLLAMA_MODEL =
-  process.env.OLLAMA_MODEL || "huihui_ai/qwen3.5-abliterated:9b";
+  process.env.OLLAMA_MODEL || "richardyoung/qwen2.5-3b-instruct-abliterated";
 
 const publicDir = path.join(__dirname, "public");
 
@@ -158,12 +158,12 @@ function ollamaGetTags() {
   });
 }
 
-function streamOllamaChat(res, history) {
+function streamOllamaChat(res, history, model) {
   return new Promise((resolve, reject) => {
     const systemPrompt =
       "Eres una interfaz local de asistencia tecnica. Responde de forma clara, breve y util.";
     const requestBody = JSON.stringify({
-      model: OLLAMA_MODEL,
+      model: model || OLLAMA_MODEL,
       stream: true,
       think: false,
       messages: [
@@ -350,11 +350,12 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const parsed = body ? JSON.parse(body) : {};
       const history = Array.isArray(parsed.messages) ? parsed.messages : [];
+      const model = parsed.model || OLLAMA_MODEL;
       const systemPrompt =
         "Eres una interfaz local de asistencia tecnica. Responde de forma clara, breve y util.";
 
       const response = await ollamaRequest("/api/chat", {
-        model: OLLAMA_MODEL,
+        model,
         stream: false,
         think: false,
         messages: [
@@ -365,7 +366,7 @@ const server = http.createServer(async (req, res) => {
 
       sendJson(res, 200, {
         ok: true,
-        model: OLLAMA_MODEL,
+        model,
         message: response.message || {
           role: "assistant",
           content: "No se recibio contenido del modelo.",
@@ -385,7 +386,8 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const parsed = body ? JSON.parse(body) : {};
       const history = Array.isArray(parsed.messages) ? parsed.messages : [];
-      await streamOllamaChat(res, history);
+      const model = parsed.model || OLLAMA_MODEL;
+      await streamOllamaChat(res, history, model);
     } catch (error) {
       if (!res.headersSent) {
         sendJson(res, 500, {
