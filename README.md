@@ -31,13 +31,16 @@ Asegúrate de tener instalados:
 Abre tu terminal (PowerShell o CMD) y descarga los modelos recomendados. El sistema detectará automáticamente los que tengas instalados.
 
 ```powershell
-# Opción 1: Abliterated (Sin censura) - 7B (Balance perfecto entre velocidad y poder)
+# Opción 1: Abliterated (Sin censura) - 5B MoE (Ideal para PCs estándar, rápido y capaz)
+ollama pull huihui_ai/huihui-moe-abliterated:5b
+
+# Opción 2: Abliterated (Sin censura) - 7B (Para PCs con buena tarjeta gráfica)
 ollama pull huihui_ai/qwen2.5-abliterate:7b-instruct
 
-# Opción 2: Abliterated (Sin censura) - 3B (Para PCs de bajos recursos)
+# Opción 3: Abliterated (Sin censura) - 3B (Para PCs de muy bajos recursos)
 ollama pull richardyoung/qwen2.5-3b-instruct-abliterated
 
-# Opción 3: Abliterated - 4B
+# Opción 4: Abliterated - 4B
 ollama pull kaineone/qwen3.5-4b-abliterated
 ```
 
