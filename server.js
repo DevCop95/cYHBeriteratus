@@ -156,6 +156,7 @@ async function streamOllamaChat(res, messages, model) {
     model,
     stream: true,
     messages,
+    ...(config.OLLAMA_NUM_GPU !== null && { options: { num_gpu: config.OLLAMA_NUM_GPU } }),
   });
 
   const options = {
@@ -329,73 +330,80 @@ const server = http.createServer(async (req, res) => {
           let fullContent = "";
           let currentToolCalls = [];
           
-          await new Promise((resolveRound, rejectRound) => {
-            const requestBody = JSON.stringify({
-              model,
-              stream: true,
-              messages: conversationMessages,
-              tools: toolDefinitions,
-            });
-
-            const options = {
-              hostname: config.OLLAMA_HOST,
-              port: config.OLLAMA_PORT,
-              path: "/api/chat",
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Content-Length": Buffer.byteLength(requestBody),
-              },
-              agent: ollamaAgent,
-            };
-
-            const req = http.request(options, (ollamaRes) => {
-              if (ollamaRes.statusCode !== 200) {
-                let errData = "";
-                ollamaRes.on("data", (chunk) => { errData += chunk; });
-                ollamaRes.on("end", () => rejectRound(new Error(`Ollama HTTP ${ollamaRes.statusCode}: ${errData}`)));
-                return;
-              }
-
-              ollamaRes.on("data", (chunk) => {
-                const lines = chunk.toString().split("\n");
-                for (const line of lines) {
-                  if (!line.trim()) continue;
-                  try {
-                    const parsed = JSON.parse(line);
-                    
-                    if (parsed.message?.content) {
-                      fullContent += parsed.message.content;
-                      res.write(`${JSON.stringify({ type: "token", content: parsed.message.content })}\n`);
-                    }
-
-                    // Accumulate streaming tool calls
-                    if (parsed.message?.tool_calls) {
-                      parsed.message.tool_calls.forEach((tc, i) => {
-                        if (!currentToolCalls[i]) currentToolCalls[i] = { function: { name: "", arguments: "" } };
-                        if (tc.function.name) currentToolCalls[i].function.name += tc.function.name;
-                        if (tc.function.arguments) currentToolCalls[i].function.arguments += tc.function.arguments;
-                      });
-                    }
-
-                    if (parsed.done) {
-                      streamDone = true;
-                    }
-                  } catch (e) {
-                    logger.warn("Ollama JSON parse error en stream", { line });
-                  }
-                }
+          try {
+            await new Promise((resolveRound, rejectRound) => {
+              const requestBody = JSON.stringify({
+                model,
+                stream: true,
+                messages: conversationMessages,
+                tools: toolDefinitions,
+                ...(config.OLLAMA_NUM_GPU !== null && { options: { num_gpu: config.OLLAMA_NUM_GPU } }),
               });
 
-              ollamaRes.on("end", () => resolveRound());
-              ollamaRes.on("error", rejectRound);
-            });
+              const options = {
+                hostname: config.OLLAMA_HOST,
+                port: config.OLLAMA_PORT,
+                path: "/api/chat",
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Content-Length": Buffer.byteLength(requestBody),
+                },
+                agent: ollamaAgent,
+              };
 
-            req.on("error", rejectRound);
-            req.setTimeout(config.OLLAMA_TIMEOUT_MS, () => req.destroy(new Error("Timeout esperando stream.")));
-            req.write(requestBody);
-            req.end();
-          });
+              const req = http.request(options, (ollamaRes) => {
+                if (ollamaRes.statusCode !== 200) {
+                  let errData = "";
+                  ollamaRes.on("data", (chunk) => { errData += chunk; });
+                  ollamaRes.on("end", () => rejectRound(new Error(`Ollama HTTP ${ollamaRes.statusCode}: ${errData}`)));
+                  return;
+                }
+
+                ollamaRes.on("data", (chunk) => {
+                  const lines = chunk.toString().split("\n");
+                  for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try {
+                      const parsed = JSON.parse(line);
+                      
+                      if (parsed.message?.content) {
+                        fullContent += parsed.message.content;
+                        res.write(`${JSON.stringify({ type: "token", content: parsed.message.content })}\n`);
+                      }
+
+                      // Accumulate streaming tool calls
+                      if (parsed.message?.tool_calls) {
+                        parsed.message.tool_calls.forEach((tc, i) => {
+                          if (!currentToolCalls[i]) currentToolCalls[i] = { function: { name: "", arguments: "" } };
+                          if (tc.function.name) currentToolCalls[i].function.name += tc.function.name;
+                          if (tc.function.arguments) currentToolCalls[i].function.arguments += tc.function.arguments;
+                        });
+                      }
+
+                      if (parsed.done) {
+                        streamDone = true;
+                      }
+                    } catch (e) {
+                      logger.warn("Ollama JSON parse error en stream", { line });
+                    }
+                  }
+                });
+
+                ollamaRes.on("end", () => resolveRound());
+                ollamaRes.on("error", rejectRound);
+              });
+
+              req.on("error", rejectRound);
+              req.setTimeout(config.OLLAMA_TIMEOUT_MS, () => req.destroy(new Error("Timeout esperando stream.")));
+              req.write(requestBody);
+              req.end();
+            });
+          } catch (err) {
+            res.write(`${JSON.stringify({ type: "error", error: err.message })}\n`);
+            res.end();
+            return;
+          }
 
           // Check for fallback tool calls in the streamed text
           if (currentToolCalls.length === 0 && fullContent) {
