@@ -31,10 +31,10 @@ Asegúrate de tener instalados:
 Abre tu terminal (PowerShell o CMD) y descarga los modelos recomendados. El sistema detectará automáticamente los que tengas instalados.
 
 ```powershell
-# Opción 1: Ligero y Rápido (Recomendado para uso diario)
-ollama pull qwen2.5:7b
+# Opción 1: Abliterated (Sin censura) - 7B (Balance perfecto entre velocidad y poder)
+ollama pull huihui_ai/qwen2.5-abliterate:7b-instruct
 
-# Opción 2: Abliterated (Sin censura) - 3B
+# Opción 2: Abliterated (Sin censura) - 3B (Para PCs de bajos recursos)
 ollama pull richardyoung/qwen2.5-3b-instruct-abliterated
 
 # Opción 3: Abliterated - 4B
