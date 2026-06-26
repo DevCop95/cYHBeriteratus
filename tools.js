@@ -2,7 +2,7 @@ const http = require("http");
 const https = require("https");
 const fs = require("fs").promises;
 const path = require("path");
-const { execSync } = require("child_process");
+const { execFile } = require("child_process");
 const dns = require("dns").promises;
 
 // ── Limits ──
@@ -13,8 +13,26 @@ const CMD_TIMEOUT_MS = 30000;
 const FETCH_TIMEOUT_MS = 15000;
 const WORKSPACE_DIR = path.resolve(__dirname);
 
+// ── In-memory fetch/search cache (60s TTL) ──
+const fetchCache = new Map();
+const FETCH_CACHE_TTL_MS = 60000;
+
+function getCachedFetch(key) {
+  const entry = fetchCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiry) { fetchCache.delete(key); return null; }
+  return entry.result;
+}
+
+function setCachedFetch(key, result) {
+  if (fetchCache.size >= 100) fetchCache.delete(fetchCache.keys().next().value);
+  fetchCache.set(key, { result, expiry: Date.now() + FETCH_CACHE_TTL_MS });
+}
+
 // Utility to check if IP is private (SSRF Protection)
 function isPrivateIP(ip) {
+  // IPv6 loopback and private/link-local ranges
+  if (ip === "::1" || ip === "::" || ip.startsWith("fc") || ip.startsWith("fd") || ip.startsWith("fe80") || ip.startsWith("::ffff:")) return true;
   const parts = ip.split(".").map(Number);
   if (parts.length !== 4) return false;
   return (
@@ -176,6 +194,8 @@ function stripHtml(html) {
 
 async function toolWebFetch(args) {
   const { url } = args;
+  const cached = getCachedFetch(url);
+  if (cached) return cached;
   try {
     const targetUrl = new URL(url);
     if (targetUrl.protocol !== "http:" && targetUrl.protocol !== "https:") {
@@ -198,7 +218,9 @@ async function toolWebFetch(args) {
         res.on("end", () => {
           const raw = Buffer.concat(chunks).toString("utf8");
           const text = res.headers["content-type"]?.includes("html") ? stripHtml(raw) : raw;
-          resolve({ success: true, result: text.slice(0, MAX_FETCH_BYTES) });
+          const fetchResult = { success: true, result: text.slice(0, MAX_FETCH_BYTES) };
+          setCachedFetch(url, fetchResult);
+          resolve(fetchResult);
         });
       });
       req.on("error", (err) => resolve({ success: false, error: err.message }));
@@ -211,6 +233,10 @@ async function toolWebFetch(args) {
 async function toolWebSearch(args) {
   const { query } = args;
   if (!query) return { success: false, error: "Se requiere un parametro de busqueda." };
+
+  const cacheKey = `search:${query}`;
+  const cached = getCachedFetch(cacheKey);
+  if (cached) return cached;
 
   try {
     return await new Promise((resolve) => {
@@ -230,11 +256,14 @@ async function toolWebSearch(args) {
             const snippet = stripHtml(match[3]);
             results.push(`Título/URL: ${urlText}\nEnlace: ${url}\nResumen: ${snippet}\n`);
           }
+          let searchResult;
           if (results.length === 0) {
-            resolve({ success: true, result: stripHtml(raw).slice(0, MAX_FETCH_BYTES) });
+            searchResult = { success: true, result: stripHtml(raw).slice(0, MAX_FETCH_BYTES) };
           } else {
-            resolve({ success: true, result: results.join("\n---\n") });
+            searchResult = { success: true, result: results.join("\n---\n") };
           }
+          setCachedFetch(cacheKey, searchResult);
+          resolve(searchResult);
         });
       });
       req.on("error", (err) => resolve({ success: false, error: err.message }));
@@ -245,35 +274,32 @@ async function toolWebSearch(args) {
 }
 
 function toolRunCommand(args) {
-  return new Promise((resolve) => {
-    const { command } = args;
-    if (!command) {
-      resolve({ success: false, error: "No se especifico ningun comando." });
-      return;
-    }
+  const { command } = args;
+  if (!command) return Promise.resolve({ success: false, error: "No se especifico ningun comando." });
 
-    try {
-      const output = execSync(command, {
+  return new Promise((resolve) => {
+    execFile(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", command],
+      {
         encoding: "utf8",
         timeout: CMD_TIMEOUT_MS,
-        shell: "powershell.exe",
         maxBuffer: 1024 * 1024,
         windowsHide: true,
         cwd: WORKSPACE_DIR,
-      });
-
-      let result = output || "(sin salida)";
-      if (result.length > MAX_CMD_OUTPUT) {
-        result = result.slice(0, MAX_CMD_OUTPUT) + "\n\n[... salida truncada ...]";
+      },
+      (err, stdout, stderr) => {
+        if (err) {
+          let errorMsg = stderr || stdout || err.message;
+          if (errorMsg.length > MAX_CMD_OUTPUT) errorMsg = errorMsg.slice(0, MAX_CMD_OUTPUT) + "\n\n[... error truncado ...]";
+          resolve({ success: false, error: errorMsg });
+        } else {
+          let result = stdout || "(sin salida)";
+          if (result.length > MAX_CMD_OUTPUT) result = result.slice(0, MAX_CMD_OUTPUT) + "\n\n[... salida truncada ...]";
+          resolve({ success: true, result });
+        }
       }
-      resolve({ success: true, result });
-    } catch (err) {
-      let errorMsg = err.stderr || err.stdout || err.message;
-      if (errorMsg.length > MAX_CMD_OUTPUT) {
-        errorMsg = errorMsg.slice(0, MAX_CMD_OUTPUT) + "\n\n[... error truncado ...]";
-      }
-      resolve({ success: false, error: errorMsg });
-    }
+    );
   });
 }
 

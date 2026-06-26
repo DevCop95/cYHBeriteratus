@@ -4,19 +4,22 @@
 
 Una interfaz web local estilo cyberpunk / hacker conectada a `Ollama` que soporta **Agentes Autónomos (Tool Calling)**, **modelos abliterated** (sin censura), streaming fluido en tiempo real, y una arquitectura segura "Zero-Dependency" (sin módulos externos npm).
 
-## 🔥 Novedades y Características
+## 🔥 Características
 
 - **UI Cyberpunk:** Efectos de interferencia (glitch), scanlines y animaciones retro.
 - **Motor de Agentes (Tools):** El modelo puede ejecutar acciones reales en tu computadora si activas el modo agente:
-  - `web_fetch`: Leer artículos de internet.
-  - `web_search`: Buscar en internet vía DuckDuckGo.
+  - `web_fetch`: Leer artículos de internet (con caché 60s para evitar peticiones duplicadas).
+  - `web_search`: Buscar en internet vía DuckDuckGo (con caché 60s).
   - `read_file` / `write_file` / `list_directory`: Operar en tu sistema de archivos (con Sandboxing).
-  - `run_command`: Ejecutar comandos en PowerShell.
-- **Seguridad (Sandboxing):** 
+  - `run_command`: Ejecutar comandos en PowerShell (no-bloqueante, via `execFile`).
+- **Seguridad (Sandboxing):**
   - Prevención de Directory Traversal (la IA no puede escapar del directorio del proyecto).
-  - Bloqueo SSRF (la IA no puede escanear tu red local usando `web_fetch`).
+  - Bloqueo SSRF contra IPv4 e IPv6 (la IA no puede escanear tu red local usando `web_fetch`).
   - Rate Limiting y protección contra payloads gigantes.
 - **Selector en Vivo:** Cambia de modelo al vuelo desde la interfaz sin tener que reiniciar el servidor.
+- **Streaming eficiente:** Loop agentico y modo chat comparten el mismo núcleo de streaming (`ollamaStreamRound`) — sin duplicación de código.
+- **Gestión de memoria:** Ventana deslizante de historial (últimos 20 mensajes) para evitar desbordes de contexto en sesiones largas.
+- **Limpieza ante desconexión:** Si el cliente cierra la pestaña a mitad de una respuesta, el loop agentico y la petición a Ollama se cancelan de inmediato.
 
 ---
 
@@ -31,17 +34,20 @@ Asegúrate de tener instalados:
 Abre tu terminal (PowerShell o CMD) y descarga los modelos recomendados. El sistema detectará automáticamente los que tengas instalados.
 
 ```powershell
-# Opción 1: Abliterated (Sin censura) - 5B MoE (Ideal para PCs estándar, rápido y capaz)
+# Opción 1: NeuralDaredevil 8B — mejor 8B en Open LLM Leaderboard (~6 GB VRAM)
+ollama pull NeuralDaredevil-8B-abliterated
+
+# Opción 2: Josiefied-Qwen3 8B — razonamiento superior, muy eficiente (~6 GB VRAM)
+ollama pull mradermacher/Josiefied-Qwen3-8B-abliterated
+
+# Opción 3: Abliterated 5B MoE — ideal para PCs estándar, rápido
 ollama pull huihui_ai/huihui-moe-abliterated:5b
 
-# Opción 2: Abliterated (Sin censura) - 7B (Para PCs con buena tarjeta gráfica)
+# Opción 4: Abliterated 7B — buena GPU requerida
 ollama pull huihui_ai/qwen2.5-abliterate:7b-instruct
 
-# Opción 3: Abliterated (Sin censura) - 3B (Para PCs de muy bajos recursos)
+# Opción 5: Abliterated 3B — para PCs de muy bajos recursos
 ollama pull richardyoung/qwen2.5-3b-instruct-abliterated
-
-# Opción 4: Abliterated - 4B
-ollama pull kaineone/qwen3.5-4b-abliterated
 ```
 
 *(Nota: Asegúrate de que Ollama esté corriendo en segundo plano, por defecto en el puerto `11434`)*
@@ -65,8 +71,8 @@ Este proyecto no requiere `npm install` porque utiliza únicamente módulos nati
 
 ```text
 cYHBeriteratus/
-├─ server.js           # Punto de entrada principal (Loop de Eventos)
-├─ tools.js            # Lógica de las herramientas del agente (Sandboxing)
+├─ server.js           # Punto de entrada: rutas HTTP, ollamaStreamRound, loop agentico
+├─ tools.js            # Herramientas del agente: sandboxing, caché, SSRF IPv4/IPv6
 ├─ src/
 │  ├─ config.js        # Configuraciones globales y variables de entorno
 │  ├─ utils/

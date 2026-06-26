@@ -145,66 +145,62 @@ function ollamaRequest(apiPath, payload = null) {
   });
 }
 
-async function streamOllamaChat(res, messages, model) {
-  res.writeHead(200, {
-    "Content-Type": "application/x-ndjson; charset=utf-8",
-    "Cache-Control": "no-store",
-    Connection: "keep-alive",
-  });
-
-  const requestBody = JSON.stringify({
-    model,
-    stream: true,
-    messages,
-    ...(config.OLLAMA_NUM_GPU !== null && { options: { num_gpu: config.OLLAMA_NUM_GPU } }),
-  });
-
-  const options = {
-    hostname: config.OLLAMA_HOST,
-    port: config.OLLAMA_PORT,
-    path: "/api/chat",
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Content-Length": Buffer.byteLength(requestBody),
-    },
-    agent: ollamaAgent,
-  };
-
+// ── Shared Ollama streaming round (used by both chat-stream and agent loop) ──
+function ollamaStreamRound(messages, tools, model, { onToken, onRequest } = {}) {
   return new Promise((resolve, reject) => {
-    let finished = false;
-    const finish = (err) => {
-      if (finished) return;
-      finished = true;
-      if (err && !res.writableEnded) {
-        logger.error("Error en stream", { error: err.message });
-        res.write(`${JSON.stringify({ type: "error", error: err.message })}\n`);
-      }
-      if (!res.writableEnded) res.end();
-      err ? reject(err) : resolve();
+    const requestBody = JSON.stringify({
+      model,
+      stream: true,
+      messages,
+      ...(tools && { tools }),
+      ...(config.OLLAMA_NUM_GPU !== null && { options: { num_gpu: config.OLLAMA_NUM_GPU } }),
+    });
+
+    const options = {
+      hostname: config.OLLAMA_HOST,
+      port: config.OLLAMA_PORT,
+      path: "/api/chat",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(requestBody),
+      },
+      agent: ollamaAgent,
+    };
+
+    let fullContent = "";
+    const rawToolCalls = [];
+    let settled = false;
+
+    const settle = (err, val) => {
+      if (settled) return;
+      settled = true;
+      err ? reject(err) : resolve(val);
     };
 
     const ollamaReq = http.request(options, (ollamaRes) => {
       if (ollamaRes.statusCode !== 200) {
         let errData = "";
-        ollamaRes.on("data", (chunk) => { errData += chunk; });
-        ollamaRes.on("end", () => {
-          finish(new Error(`Ollama respondio con error HTTP ${ollamaRes.statusCode}: ${errData}`));
-        });
+        ollamaRes.on("data", (c) => { errData += c; });
+        ollamaRes.on("end", () => settle(new Error(`Ollama HTTP ${ollamaRes.statusCode}: ${errData}`)));
         return;
       }
 
       ollamaRes.on("data", (chunk) => {
-        const lines = chunk.toString().split("\n");
-        for (const line of lines) {
+        for (const line of chunk.toString().split("\n")) {
           if (!line.trim()) continue;
           try {
             const parsed = JSON.parse(line);
             if (parsed.message?.content) {
-              res.write(`${JSON.stringify({ type: "token", content: parsed.message.content })}\n`);
+              fullContent += parsed.message.content;
+              onToken?.(parsed.message.content);
             }
-            if (parsed.done) {
-              res.write(`${JSON.stringify({ type: "done", done: true })}\n`);
+            if (parsed.message?.tool_calls) {
+              parsed.message.tool_calls.forEach((tc, i) => {
+                if (!rawToolCalls[i]) rawToolCalls[i] = { function: { name: "", arguments: "" } };
+                if (tc.function.name) rawToolCalls[i].function.name += tc.function.name;
+                if (tc.function.arguments) rawToolCalls[i].function.arguments += tc.function.arguments;
+              });
             }
           } catch (e) {
             logger.warn("Ollama JSON parse error en stream", { line });
@@ -212,21 +208,44 @@ async function streamOllamaChat(res, messages, model) {
         }
       });
 
-      ollamaRes.on("end", () => finish());
-      ollamaRes.on("error", finish);
+      ollamaRes.on("end", () => settle(null, { fullContent, toolCalls: rawToolCalls }));
+      ollamaRes.on("error", (err) => settle(err));
     });
 
-    ollamaReq.setTimeout(config.OLLAMA_TIMEOUT_MS, () => {
-      ollamaReq.destroy(new Error("Timeout esperando stream de Ollama."));
-    });
-
-    const reqClose = () => ollamaReq.destroy(new Error("Cliente desconectado."));
-    res.on("close", reqClose);
-    ollamaReq.on("close", () => res.off("close", reqClose));
-    ollamaReq.on("error", finish);
+    ollamaReq.setTimeout(config.OLLAMA_TIMEOUT_MS, () => ollamaReq.destroy(new Error("Timeout esperando stream de Ollama.")));
+    onRequest?.(ollamaReq);
+    ollamaReq.on("error", (err) => settle(err));
     ollamaReq.write(requestBody);
     ollamaReq.end();
   });
+}
+
+async function streamOllamaChat(res, messages, model) {
+  res.writeHead(200, {
+    "Content-Type": "application/x-ndjson; charset=utf-8",
+    "Cache-Control": "no-store",
+    Connection: "keep-alive",
+  });
+
+  let reqRef = null;
+  const cleanup = () => reqRef?.destroy(new Error("Cliente desconectado."));
+  res.on("close", cleanup);
+
+  try {
+    await ollamaStreamRound(messages, null, model, {
+      onToken: (content) => { if (!res.writableEnded) res.write(`${JSON.stringify({ type: "token", content })}\n`); },
+      onRequest: (req) => { reqRef = req; },
+    });
+    if (!res.writableEnded) res.write(`${JSON.stringify({ type: "done", done: true })}\n`);
+  } catch (err) {
+    if (!res.writableEnded) {
+      logger.error("Error en stream", { error: err.message });
+      res.write(`${JSON.stringify({ type: "error", error: err.message })}\n`);
+    }
+  } finally {
+    res.off("close", cleanup);
+    if (!res.writableEnded) res.end();
+  }
 }
 
 // ── HTTP Server Entrypoint ──
@@ -320,90 +339,40 @@ const server = http.createServer(async (req, res) => {
           "3. INMEDIATAMENTE despues de escribir la herramienta, DETENTE. No alucines el resultado. El sistema te lo enviara.\n" +
           "4. Responde en español, preciso y sin excusas.";
 
+        const MAX_HISTORY = 20;
         const conversationMessages = [{ role: "system", content: agentSystemPrompt }, ...history];
         let round = 0;
         let doneToolLoop = false;
+        let clientDisconnected = false;
+        let currentRoundReq = null;
+        res.on("close", () => {
+          clientDisconnected = true;
+          currentRoundReq?.destroy(new Error("Cliente desconectado."));
+        });
 
-        while (!doneToolLoop && round < config.MAX_TOOL_ROUNDS) {
+        while (!doneToolLoop && !clientDisconnected && round < config.MAX_TOOL_ROUNDS) {
           round++;
-          let streamDone = false;
-          let fullContent = "";
-          let currentToolCalls = [];
-          
+
+          // Sliding window: keep system prompt + last MAX_HISTORY messages
+          if (conversationMessages.length > MAX_HISTORY + 1) {
+            conversationMessages.splice(1, conversationMessages.length - MAX_HISTORY - 1);
+          }
+
+          let roundResult;
           try {
-            await new Promise((resolveRound, rejectRound) => {
-              const requestBody = JSON.stringify({
-                model,
-                stream: true,
-                messages: conversationMessages,
-                tools: toolDefinitions,
-                ...(config.OLLAMA_NUM_GPU !== null && { options: { num_gpu: config.OLLAMA_NUM_GPU } }),
-              });
-
-              const options = {
-                hostname: config.OLLAMA_HOST,
-                port: config.OLLAMA_PORT,
-                path: "/api/chat",
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "Content-Length": Buffer.byteLength(requestBody),
-                },
-                agent: ollamaAgent,
-              };
-
-              const req = http.request(options, (ollamaRes) => {
-                if (ollamaRes.statusCode !== 200) {
-                  let errData = "";
-                  ollamaRes.on("data", (chunk) => { errData += chunk; });
-                  ollamaRes.on("end", () => rejectRound(new Error(`Ollama HTTP ${ollamaRes.statusCode}: ${errData}`)));
-                  return;
-                }
-
-                ollamaRes.on("data", (chunk) => {
-                  const lines = chunk.toString().split("\n");
-                  for (const line of lines) {
-                    if (!line.trim()) continue;
-                    try {
-                      const parsed = JSON.parse(line);
-                      
-                      if (parsed.message?.content) {
-                        fullContent += parsed.message.content;
-                        res.write(`${JSON.stringify({ type: "token", content: parsed.message.content })}\n`);
-                      }
-
-                      // Accumulate streaming tool calls
-                      if (parsed.message?.tool_calls) {
-                        parsed.message.tool_calls.forEach((tc, i) => {
-                          if (!currentToolCalls[i]) currentToolCalls[i] = { function: { name: "", arguments: "" } };
-                          if (tc.function.name) currentToolCalls[i].function.name += tc.function.name;
-                          if (tc.function.arguments) currentToolCalls[i].function.arguments += tc.function.arguments;
-                        });
-                      }
-
-                      if (parsed.done) {
-                        streamDone = true;
-                      }
-                    } catch (e) {
-                      logger.warn("Ollama JSON parse error en stream", { line });
-                    }
-                  }
-                });
-
-                ollamaRes.on("end", () => resolveRound());
-                ollamaRes.on("error", rejectRound);
-              });
-
-              req.on("error", rejectRound);
-              req.setTimeout(config.OLLAMA_TIMEOUT_MS, () => req.destroy(new Error("Timeout esperando stream.")));
-              req.write(requestBody);
-              req.end();
+            roundResult = await ollamaStreamRound(conversationMessages, toolDefinitions, model, {
+              onToken: (content) => { if (!res.writableEnded) res.write(`${JSON.stringify({ type: "token", content })}\n`); },
+              onRequest: (req) => { currentRoundReq = req; },
             });
           } catch (err) {
-            res.write(`${JSON.stringify({ type: "error", error: err.message })}\n`);
-            res.end();
+            if (!res.writableEnded) res.write(`${JSON.stringify({ type: "error", error: err.message })}\n`);
+            if (!res.writableEnded) res.end();
             return;
           }
+
+          if (clientDisconnected) break;
+
+          let { fullContent, toolCalls: currentToolCalls } = roundResult;
 
           // Check for fallback tool calls in the streamed text
           if (currentToolCalls.length === 0 && fullContent) {
@@ -413,8 +382,7 @@ const server = http.createServer(async (req, res) => {
               const name = match[1];
               if (toolDefinitions.some(t => t.function.name === name)) {
                 try {
-                  const argsText = match[2];
-                  currentToolCalls = [{ function: { name, arguments: argsText } }];
+                  currentToolCalls = [{ function: { name, arguments: match[2] } }];
                   fullContent = fullContent.substring(0, match.index).trim();
                 } catch (e) {}
               }
@@ -427,11 +395,11 @@ const server = http.createServer(async (req, res) => {
               return {
                 function: {
                   name: tc.function.name,
-                  arguments: typeof tc.function.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function.arguments
+                  arguments: typeof tc.function.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function.arguments,
                 }
               };
             } catch (e) {
-              return null; // Ignore invalid JSON arguments
+              return null;
             }
           }).filter(Boolean);
 
@@ -441,15 +409,16 @@ const server = http.createServer(async (req, res) => {
             conversationMessages.push(assistantMsg);
 
             for (const toolCall of finalToolCalls) {
+              if (clientDisconnected) break;
               const toolName = toolCall.function.name;
               const toolArgs = toolCall.function.arguments;
-              
+
               logger.info(`Agente ejecutando herramienta: ${toolName}`);
-              res.write(`${JSON.stringify({ type: "tool_call", name: toolName, arguments: toolArgs })}\n`);
-              
+              if (!res.writableEnded) res.write(`${JSON.stringify({ type: "tool_call", name: toolName, arguments: toolArgs })}\n`);
+
               const toolResult = await executeTool(toolName, toolArgs);
-              
-              res.write(`${JSON.stringify({
+
+              if (!res.writableEnded) res.write(`${JSON.stringify({
                 type: "tool_result",
                 name: toolName,
                 success: toolResult.success,
@@ -462,17 +431,18 @@ const server = http.createServer(async (req, res) => {
               });
             }
           } else {
-            // No tools used, loop is done
             conversationMessages.push(assistantMsg);
             doneToolLoop = true;
           }
         }
 
-        if (!doneToolLoop) {
-          res.write(`${JSON.stringify({ type: "token", content: "\n\n[Se alcanzo el limite de herramientas por turno]" })}\n`);
+        if (!clientDisconnected && !doneToolLoop) {
+          if (!res.writableEnded) res.write(`${JSON.stringify({ type: "token", content: "\n\n[Se alcanzo el limite de herramientas por turno]" })}\n`);
         }
-        res.write(`${JSON.stringify({ type: "done", done: true })}\n`);
-        res.end();
+        if (!res.writableEnded) {
+          res.write(`${JSON.stringify({ type: "done", done: true })}\n`);
+          res.end();
+        }
       }
     } catch (error) {
       if (!res.headersSent) {
