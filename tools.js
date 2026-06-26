@@ -438,4 +438,5 @@ async function executeTool(name, args) {
 module.exports = {
   toolDefinitions,
   executeTool,
+  isPrivateIP,
 };

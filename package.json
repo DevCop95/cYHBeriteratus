@@ -7,6 +7,7 @@
     "start": "python hack.py start",
     "stop": "python hack.py stop",
     "status": "python hack.py status",
-    "restart": "python hack.py restart"
+    "restart": "python hack.py restart",
+    "test": "node --test tests/validator.test.js tests/security.test.js tests/logger.test.js tests/tools.isPrivateIP.test.js tests/tools.ssrf.test.js tests/tools.files.test.js tests/tools.command.test.js"
   }
 }

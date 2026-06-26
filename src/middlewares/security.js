@@ -47,7 +47,7 @@ setInterval(() => {
   for (const [ip, rec] of requestCounts) {
     if (now > rec.resetTime) requestCounts.delete(ip);
   }
-}, 5 * 60 * 1000);
+}, 5 * 60 * 1000).unref();
 
 module.exports = {
   rateLimiter,
