@@ -861,6 +861,37 @@ body {
   border-radius: 3px;
 }
 
+.rounds-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rounds-input {
+  width: 64px;
+  padding: 10px 8px;
+  text-align: center;
+  border: 1px solid rgba(180, 30, 30, 0.3);
+  border-radius: 10px;
+  background: rgba(8, 1, 1, 0.95);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.rounds-input:focus {
+  outline: none;
+  border-color: var(--line-strong);
+  box-shadow: 0 0 0 3px rgba(180, 20, 20, 0.15);
+}
+
+.rounds-input::-webkit-inner-spin-button,
+.rounds-input::-webkit-outer-spin-button {
+  opacity: 0.4;
+}
+
 .hidden {
   display: none !important;
 }

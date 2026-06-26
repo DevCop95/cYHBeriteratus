@@ -16,6 +16,19 @@ const ollamaAgent = new http.Agent({
   maxFreeSockets: 4,
 });
 
+// ── Server-side session store ──
+const sessions = new Map();
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+const SESSION_MAX_MESSAGES = 100;
+const SESSION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+setInterval(() => {
+  const cutoff = Date.now() - SESSION_TTL_MS;
+  for (const [id, s] of sessions) {
+    if (s.lastAccess < cutoff) sessions.delete(id);
+  }
+}, 60 * 60 * 1000).unref();
+
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -259,6 +272,40 @@ const server = http.createServer(async (req, res) => {
 
   if (!rateLimiter(req, res)) return;
 
+  // ── Session routes ──
+  const sessionMatch = reqUrl.pathname.match(/^\/api\/session\/([^/]+)(\/sync)?$/);
+  if (sessionMatch) {
+    const sessionId = sessionMatch[1];
+    const isSync = !!sessionMatch[2];
+
+    if (!SESSION_ID_RE.test(sessionId)) {
+      return sendJson(res, 400, { error: "ID de sesion invalido." });
+    }
+
+    if (req.method === "GET" && !isSync) {
+      const session = sessions.get(sessionId);
+      if (session) session.lastAccess = Date.now();
+      return sendJson(res, 200, { messages: session?.messages ?? [] });
+    }
+
+    if (req.method === "POST" && isSync) {
+      try {
+        const body = await parseJsonBody(req, res);
+        if (res.writableEnded) return;
+        if (!Array.isArray(body.messages)) return sendJson(res, 400, { error: "'messages' debe ser un array." });
+        sessions.set(sessionId, { messages: body.messages.slice(-SESSION_MAX_MESSAGES), lastAccess: Date.now() });
+        return sendJson(res, 200, { ok: true });
+      } catch { return; }
+    }
+
+    if (req.method === "DELETE" && !isSync) {
+      sessions.delete(sessionId);
+      return sendJson(res, 200, { ok: true });
+    }
+
+    return sendJson(res, 405, { error: "Metodo no permitido." });
+  }
+
   if (req.method === "GET" && reqUrl.pathname === "/api/status") {
     try {
       const tags = await ollamaRequest("/api/tags");
@@ -320,6 +367,7 @@ const server = http.createServer(async (req, res) => {
 
       if (reqUrl.pathname === "/api/chat-agent") {
         const agentMode = parsed.agentMode !== false;
+        const maxRounds = Math.min(20, Math.max(1, parseInt(parsed.maxRounds, 10) || config.MAX_TOOL_ROUNDS));
         if (!agentMode) {
           await streamOllamaChat(res, history, model);
           return;
@@ -350,7 +398,7 @@ const server = http.createServer(async (req, res) => {
           currentRoundReq?.destroy(new Error("Cliente desconectado."));
         });
 
-        while (!doneToolLoop && !clientDisconnected && round < config.MAX_TOOL_ROUNDS) {
+        while (!doneToolLoop && !clientDisconnected && round < maxRounds) {
           round++;
 
           // Sliding window: keep system prompt + last MAX_HISTORY messages

@@ -43,6 +43,11 @@
               </label>
               <span class="agent-toggle__label">MODO AGENTE (TOOLS)</span>
             </div>
+
+            <div class="rounds-control">
+              <label for="maxRoundsInput" class="model-selector__label">RONDAS</label>
+              <input type="number" id="maxRoundsInput" class="rounds-input" min="1" max="20" value="8" title="Máximo de rondas de herramientas por respuesta">
+            </div>
           </div>
 
         <div class="hero__body">
@@ -120,6 +125,6 @@
       </article>
     </template>
 
-    <script src="/app.js" defer></script>
+    <script type="module" src="/app.js"></script>
   </body>
 </html>
