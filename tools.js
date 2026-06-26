@@ -238,36 +238,62 @@ async function toolWebSearch(args) {
   const cached = getCachedFetch(cacheKey);
   if (cached) return cached;
 
-  try {
-    return await new Promise((resolve) => {
-      const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-      const req = https.get(searchUrl, { timeout: FETCH_TIMEOUT_MS, headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" } }, (res) => {
-        const chunks = [];
-        res.on("data", (chunk) => chunks.push(chunk));
-        res.on("end", () => {
-          const raw = Buffer.concat(chunks).toString("utf8");
-          // Parse DuckDuckGo HTML format
-          const results = [];
-          const regex = /<a class="result__url" href="([^"]+)">([^<]+)<\/a>[\s\S]*?<a class="result__snippet[^>]*>([\s\S]*?)<\/a>/gi;
-          let match;
-          while ((match = regex.exec(raw)) !== null && results.length < 5) {
-            const url = match[1];
-            const urlText = match[2];
-            const snippet = stripHtml(match[3]);
-            results.push(`Título/URL: ${urlText}\nEnlace: ${url}\nResumen: ${snippet}\n`);
-          }
-          let searchResult;
-          if (results.length === 0) {
-            searchResult = { success: true, result: stripHtml(raw).slice(0, MAX_FETCH_BYTES) };
-          } else {
-            searchResult = { success: true, result: results.join("\n---\n") };
-          }
-          setCachedFetch(cacheKey, searchResult);
-          resolve(searchResult);
-        });
-      });
-      req.on("error", (err) => resolve({ success: false, error: err.message }));
+  const fetchDDG = (url) => new Promise((resolve) => {
+    const req = https.get(url, { timeout: FETCH_TIMEOUT_MS, headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" } }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        return resolve(fetchDDG(new URL(res.headers.location, url).href));
+      }
+      const chunks = [];
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () => resolve({ ok: true, raw: Buffer.concat(chunks).toString("utf8") }));
     });
+    req.on("error", (err) => resolve({ ok: false, error: err.message }));
+  });
+
+  try {
+    const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+    const fetched = await fetchDDG(searchUrl);
+    if (!fetched.ok) return { success: false, error: fetched.error };
+
+    const raw = fetched.raw;
+    const results = [];
+
+    // Two patterns: DDG has changed class names across redesigns
+    const patterns = [
+      /<a class="result__url" href="([^"]+)">([^<]+)<\/a>[\s\S]*?<a class="result__snippet[^>]*>([\s\S]*?)<\/a>/gi,
+      /<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>([^<]*)<\/a>[\s\S]*?<a[^>]+class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/gi,
+    ];
+
+    for (const regex of patterns) {
+      if (results.length >= 5) break;
+      let match;
+      while ((match = regex.exec(raw)) !== null && results.length < 5) {
+        const snippet = stripHtml(match[3]).trim();
+        if (snippet) results.push(`URL: ${match[2].trim()}\nEnlace: ${match[1]}\nResumen: ${snippet}\n`);
+      }
+    }
+
+    // Fallback: extract external links + anchor text instead of raw stripped HTML
+    if (results.length === 0) {
+      const linkRegex = /<a[^>]+href="(https?:\/\/[^"]+)"[^>]*>([^<]{10,})<\/a>/gi;
+      const seen = new Set();
+      let m;
+      while ((m = linkRegex.exec(raw)) !== null && results.length < 5) {
+        const link = m[1];
+        const text = stripHtml(m[2]).trim();
+        if (!seen.has(link) && !link.includes("duckduckgo.com")) {
+          seen.add(link);
+          results.push(`Enlace: ${link}\nTexto: ${text}\n`);
+        }
+      }
+    }
+
+    const searchResult = results.length > 0
+      ? { success: true, result: results.join("\n---\n") }
+      : { success: true, result: stripHtml(raw).slice(0, MAX_FETCH_BYTES) };
+
+    setCachedFetch(cacheKey, searchResult);
+    return searchResult;
   } catch (err) {
     return { success: false, error: err.message };
   }
