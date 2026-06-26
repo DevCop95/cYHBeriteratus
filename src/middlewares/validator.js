@@ -47,6 +47,9 @@ function validateChatRequest(parsed) {
       if (!msg.role || typeof msg.role !== "string") {
         return { valid: false, error: "Cada mensaje debe tener un 'role' válido" };
       }
+      if (typeof msg.content !== "string") {
+        return { valid: false, error: "Cada mensaje debe tener 'content' de tipo string" };
+      }
     }
   }
 

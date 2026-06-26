@@ -28,7 +28,7 @@ function loadMessages() {
 }
 
 function saveMessages() {
-  localStorage.setItem(storageKey, JSON.stringify(messages));
+  try { localStorage.setItem(storageKey, JSON.stringify(messages)); } catch {}
 }
 
 function updateCounters() {
@@ -236,7 +236,11 @@ async function sendMessage(content) {
         body: JSON.stringify({
           model: modelToUse,
           agentMode: agentModeToggle ? agentModeToggle.checked : false,
-          messages: messages.filter(m => m.role === "user" || m.role === "assistant").map(({ role, content: messageContent }) => ({
+          messages: messages.filter(m =>
+            (m.role === "user" || m.role === "assistant") &&
+            !m.content?.startsWith("[CONECTANDO]") &&
+            !m.content?.startsWith("[ERROR]")
+          ).map(({ role, content: messageContent }) => ({
             role,
             content: messageContent,
           })),
@@ -372,11 +376,10 @@ async function sendMessage(content) {
     }
 
     saveMessages();
-    fetchStatus();
   } catch (error) {
     if (
       messages[messages.length - 1]?.role === "assistant" &&
-      messages[messages.length - 1].content === "Conectando con Ollama..."
+      messages[messages.length - 1].content === "[CONECTANDO] Estableciendo enlace oscuro..."
     ) {
       messages.pop();
     }

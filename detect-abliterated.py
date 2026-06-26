@@ -18,7 +18,7 @@ def detect_abliterated():
             models = []
             for line in result.stdout.strip().split("\n")[1:]:
                 parts = line.split()
-                if len(parts) >= 2:
+                if len(parts) >= 4:
                     models.append({"name": parts[0], "size": parts[2] + " " + parts[3]})
         except Exception:
             print("Error: No se pudo conectar con Ollama.")

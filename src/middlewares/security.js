@@ -42,6 +42,13 @@ function applySecurityHeaders(res) {
   res.setHeader("X-Frame-Options", "DENY");
 }
 
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, rec] of requestCounts) {
+    if (now > rec.resetTime) requestCounts.delete(ip);
+  }
+}, 5 * 60 * 1000);
+
 module.exports = {
   rateLimiter,
   applySecurityHeaders,

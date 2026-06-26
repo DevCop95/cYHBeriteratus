@@ -5,7 +5,7 @@ const LEVELS = {
   ERROR: 3,
 };
 
-const CURRENT_LEVEL = LEVELS.INFO;
+const CURRENT_LEVEL = LEVELS[process.env.LOG_LEVEL?.toUpperCase()] ?? LEVELS.INFO;
 
 function log(levelName, message, meta = {}) {
   const levelValue = LEVELS[levelName];
