@@ -98,14 +98,14 @@ def start_server() -> int:
     pid = read_pid()
 
     if pid and process_exists(pid):
-        print(f"Servidor ya activo con PID {pid} en http://{HOST}:{PORT}")
+        print(f"Server already running with PID {pid} at http://{HOST}:{PORT}")
         return 0
 
     if is_port_open(HOST, PORT):
         clear_pid()
         print(
-            f"El puerto {PORT} ya esta ocupado por otro proceso. "
-            f"Libera el puerto o usa APP_PORT para otro valor."
+            f"Port {PORT} is already taken by another process. "
+            f"Free the port or set APP_PORT to a different value."
         )
         return 1
 
@@ -131,13 +131,13 @@ def start_server() -> int:
     for _ in range(20):
         if is_port_open(HOST, PORT):
             write_pid(process.pid)
-            print(f"Servidor iniciado con PID {process.pid} en http://{HOST}:{PORT}")
+            print(f"Server started with PID {process.pid} at http://{HOST}:{PORT}")
             return 0
         if process.poll() is not None:
             break
         time.sleep(0.3)
 
-    print("No se pudo iniciar el servidor. Revisa server.log")
+    print("Could not start the server. Check server.log")
     return 1
 
 
@@ -148,17 +148,17 @@ def stop_server() -> int:
         port_pid = get_port_pid(PORT)
         if port_pid:
             pid = port_pid
-            print(f"Deteniendo proceso en puerto {PORT} con PID {pid}...")
+            print(f"Stopping process on port {PORT} with PID {pid}...")
         elif is_port_open(HOST, PORT):
-            print(f"Hay algo escuchando en {HOST}:{PORT}, pero no pude resolver su PID.")
+            print(f"Something is listening on {HOST}:{PORT}, but its PID could not be resolved.")
             return 1
         else:
-            print("No hay servidor registrado para detener.")
+            print("No registered server to stop.")
             return 0
 
     if not process_exists(pid):
         clear_pid()
-        print("El PID registrado ya no existe. Archivo limpiado.")
+        print("The registered PID no longer exists. PID file cleaned up.")
         return 0
 
     try:
@@ -172,11 +172,11 @@ def stop_server() -> int:
         else:
             os.kill(pid, signal.SIGTERM)
     except Exception as exc:
-        print(f"No se pudo detener el servidor: {exc}")
+        print(f"Could not stop the server: {exc}")
         return 1
 
     clear_pid()
-    print(f"Servidor detenido. PID {pid}")
+    print(f"Server stopped. PID {pid}")
     return 0
 
 
@@ -190,11 +190,11 @@ def status_server() -> int:
         return 0
 
     if port_open and port_pid:
-        print(f"PUERTO OCUPADO | PID {port_pid} | http://{HOST}:{PORT} | sin PID gestionado")
+        print(f"PORT BUSY | PID {port_pid} | http://{HOST}:{PORT} | no managed PID")
         return 0
 
     if port_open:
-        print(f"PUERTO OCUPADO | http://{HOST}:{PORT} | sin PID gestionado")
+        print(f"PORT BUSY | http://{HOST}:{PORT} | no managed PID")
         return 0
 
     print("OFFLINE")
@@ -202,7 +202,7 @@ def status_server() -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Control del server Node hacker UI.")
+    parser = argparse.ArgumentParser(description="Control script for the Node hacker UI server.")
     parser.add_argument("command", choices=["start", "stop", "status", "restart"])
     args = parser.parse_args()
 

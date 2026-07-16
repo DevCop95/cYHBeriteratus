@@ -1,24 +1,23 @@
 import { getOrCreateSessionId, loadMessages, saveMessages, restoreSession, syncSession, clearSession } from "./modules/session.js";
-import { chatLog, chatForm, promptInput, clearButton, sendButton, modelSelect, agentModeToggle, maxRoundsInput, toolTemplate, formatTime, createMessageNode, renderMessages, setBusy, setStatus } from "./modules/ui.js";
+import {
+  chatContainer, promptInput, sendButton, clearButton, modelSelect,
+  agentModeToggle, maxRoundsInput, welcomeScreen,
+  formatTime, showToast, hideWelcome, showWelcome,
+  createMessageNode, updateBubble, updateThinking, appendNode, renderMessages,
+  setBusy, setStatus, updateStats,
+} from "./modules/ui.js";
 import { processStream } from "./modules/stream.js";
 
 const CHAT_TIMEOUT_MS = 180000;
 
 let messages = [];
 let selectedModel = "";
-let sessionId = getOrCreateSessionId();
+let isProcessing = false;
+let abortController = null;
+const sessionId = getOrCreateSessionId();
 
-function appendMessage(entry) {
-  if (
-    chatLog.children.length === 1 &&
-    chatLog.firstElementChild?.textContent.includes("[ACCESO NO AUTORIZADO]")
-  ) {
-    chatLog.innerHTML = "";
-  }
-  const node = createMessageNode(entry);
-  chatLog.appendChild(node);
-  chatLog.scrollTop = chatLog.scrollHeight;
-  return node;
+function countMessages() {
+  return messages.filter((m) => m.role === "user" || m.role === "assistant").length;
 }
 
 async function fetchStatus() {
@@ -30,151 +29,197 @@ async function fetchStatus() {
       selectedModel
     );
   } catch {
-    setStatus({ ok: false, error: "Servidor local inactivo. Verifica Ollama." }, selectedModel);
+    setStatus({ ok: false, error: "Local server down. Check Ollama." }, selectedModel);
   }
 }
 
 async function sendMessage(content) {
-  const userEntry = { role: "user", content, time: formatTime() };
-  messages.push(userEntry);
-  saveMessages(messages);
-  appendMessage(userEntry);
-  setBusy(true);
-
+  if (isProcessing) return;
   const modelToUse = selectedModel || modelSelect.value;
   if (!modelToUse) {
-    const fail = { role: "assistant", content: "☢ FALLO: Selecciona un modelo primero.", time: formatTime() };
-    messages.push(fail);
-    saveMessages(messages);
-    appendMessage(fail);
-    setBusy(false);
+    showToast("Select a model first");
     return;
   }
 
-  const assistantEntry = { role: "assistant", content: "[CONECTANDO] Estableciendo enlace oscuro...", time: formatTime() };
-  messages.push(assistantEntry);
-  const assistantNode = appendMessage(assistantEntry);
-  const assistantContent = assistantNode.querySelector(".message__content");
-  let fullContent = "";
-  let toolUsed = false;
+  isProcessing = true;
+  hideWelcome();
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
+  const userEntry = { role: "user", content, time: formatTime() };
+  messages.push(userEntry);
+  saveMessages(messages);
+  appendNode(createMessageNode(userEntry));
+  updateStats({ count: countMessages() });
+
+  // Build the request payload before adding the streaming placeholder.
+  const payloadMessages = messages
+    .filter((m) => (m.role === "user" || m.role === "assistant") && m.content?.trim())
+    .map(({ role, content: c }) => ({ role, content: c }));
+
+  const assistantEntry = { role: "assistant", content: "", time: formatTime() };
+  messages.push(assistantEntry);
+  const assistantNode = appendNode(createMessageNode(assistantEntry));
+  const bubble = assistantNode._bubble;
+
+  setBusy(true);
+
+  let fullContent = "";
+  let fullThinking = "";
+  let toolUsed = false;
+  let lastToolEntry = null;
+  let lastToolNode = null;
+
+  abortController = new AbortController();
+  const timeoutId = setTimeout(() => abortController.abort(), CHAT_TIMEOUT_MS);
 
   try {
-    let response;
-    try {
-      response = await fetch("/api/chat-agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
-        body: JSON.stringify({
-          model: modelToUse,
-          agentMode: agentModeToggle?.checked ?? false,
-          maxRounds: parseInt(maxRoundsInput?.value, 10) || 8,
-          messages: messages
-            .filter(m =>
-              (m.role === "user" || m.role === "assistant") &&
-              !m.content?.startsWith("[CONECTANDO]") &&
-              !m.content?.startsWith("[ERROR]")
-            )
-            .map(({ role, content: c }) => ({ role, content: c })),
-        }),
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    const response = await fetch("/api/chat-agent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: abortController.signal,
+      body: JSON.stringify({
+        model: modelToUse,
+        agentMode: agentModeToggle?.checked ?? false,
+        maxRounds: parseInt(maxRoundsInput?.value, 10) || 8,
+        messages: payloadMessages,
+      }),
+    });
 
     if (!response.ok || !response.body) {
-      let errorMessage = "FALLO EN LA CONEXION OSCURA.";
+      let errorMessage = "DARK LINK CONNECTION FAILED.";
       try { const d = await response.json(); errorMessage = d.error || errorMessage; } catch {}
       throw new Error(errorMessage);
     }
 
     await processStream(response, {
       onToken(token) {
-        if (fullContent.length === 0 && assistantEntry.content === "[CONECTANDO] Estableciendo enlace oscuro...") {
-          assistantEntry.content = "";
-          assistantContent.textContent = "";
-        }
         fullContent += token;
         assistantEntry.content = fullContent;
-        assistantContent.textContent = fullContent;
-        chatLog.scrollTop = chatLog.scrollHeight;
+        updateBubble(bubble, fullContent);
+      },
+      onThinking(chunk) {
+        fullThinking += chunk;
+        updateThinking(assistantNode, fullThinking);
       },
       onToolCall(event) {
         toolUsed = true;
-        if (assistantEntry.content === "[CONECTANDO] Estableciendo enlace oscuro...") {
-          assistantEntry.content = "";
-          assistantContent.textContent = "";
-        }
-        const fragment = toolTemplate.content.cloneNode(true);
-        const article = fragment.querySelector(".message");
-        fragment.querySelector(".message__time").textContent = formatTime();
-        fragment.querySelector(".tool-name").textContent = `[Tool] ${event.name}(${JSON.stringify(event.arguments)})`;
-        chatLog.insertBefore(article, assistantNode);
-        chatLog.scrollTop = chatLog.scrollHeight;
+        lastToolEntry = { role: "tool_call", name: `${event.name}(${JSON.stringify(event.arguments)})`, time: formatTime() };
+        messages.splice(messages.length - 1, 0, lastToolEntry); // keep before assistant entry
+        lastToolNode = createMessageNode(lastToolEntry);
+        chatContainer.insertBefore(lastToolNode, assistantNode);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
       },
       onToolResult(event) {
-        const toolNodes = chatLog.querySelectorAll(".message--tool");
-        if (toolNodes.length > 0) {
-          const last = toolNodes[toolNodes.length - 1];
-          const status = last.querySelector(".tool-status");
-          const result = last.querySelector(".tool-result");
-          status.textContent = event.success ? "Completado" : "Error";
-          status.className = `tool-status ${event.success ? "success" : "error"}`;
-          result.textContent = event.content;
-          result.classList.remove("hidden");
-          chatLog.scrollTop = chatLog.scrollHeight;
+        if (lastToolNode) {
+          lastToolNode._status.className = `tool-status ${event.success ? "success" : "error"}`;
+          lastToolNode._status.textContent = event.success ? "Done" : "Error";
+          lastToolNode._result.textContent = event.content;
+          lastToolNode._result.style.display = "";
+        }
+        if (lastToolEntry) {
+          lastToolEntry.role = "tool_result";
+          lastToolEntry.success = event.success;
+          lastToolEntry.content = event.content;
         }
       },
     });
 
-    if (!fullContent.trim() && !toolUsed) {
-      assistantEntry.content = "[ERROR] El modelo no respondio. Posible interferencia.";
-      assistantContent.textContent = assistantEntry.content;
-    } else if (!fullContent.trim() && toolUsed && assistantEntry.content === "[CONECTANDO] Estableciendo enlace oscuro...") {
-      assistantEntry.content = "";
-      assistantContent.textContent = "";
+    if (!fullContent.trim() && !toolUsed && !fullThinking.trim()) {
+      assistantEntry.content = "[ERROR] The model did not respond. Possible interference.";
+      updateBubble(bubble, assistantEntry.content);
+    } else if (!fullContent.trim() && toolUsed) {
+      // Only tools ran, no final text — drop the empty assistant bubble.
+      assistantNode.remove();
+      const idx = messages.indexOf(assistantEntry);
+      if (idx !== -1) messages.splice(idx, 1);
+    } else if (!fullContent.trim() && fullThinking.trim()) {
+      // Reasoning only, no final answer — show a hint instead of a blank bubble.
+      assistantEntry.content = "_(model produced reasoning only — see CHAIN OF THOUGHT above)_";
+      updateBubble(bubble, assistantEntry.content);
     }
 
     saveMessages(messages);
     syncSession(sessionId, messages);
-
   } catch (error) {
-    if (
-      messages[messages.length - 1]?.role === "assistant" &&
-      messages[messages.length - 1].content === "[CONECTANDO] Estableciendo enlace oscuro..."
-    ) {
-      messages.pop();
-    }
+    const idx = messages.indexOf(assistantEntry);
+    if (idx !== -1) messages.splice(idx, 1);
+    assistantNode.remove();
+
     const msg = error.name === "AbortError"
-      ? "Se corto el enlace. Demasiado tiempo de espera. Reintenta o reduce el mensaje."
+      ? "Link cut. Timed out. Retry or shorten the message."
       : error.message;
-    const failEntry = { role: "assistant", content: `☢ FALLO: ${msg}`, time: formatTime() };
+    const failEntry = { role: "assistant", content: `☢ FAILURE: ${msg}`, time: formatTime() };
     messages.push(failEntry);
     saveMessages(messages);
-    appendMessage(failEntry);
+    appendNode(createMessageNode(failEntry));
   } finally {
+    clearTimeout(timeoutId);
     setBusy(false);
+    isProcessing = false;
+    abortController = null;
+    updateStats({ count: countMessages() });
+    promptInput.focus();
   }
 }
 
+// ── Textarea auto-grow ──
+function autoGrow() {
+  promptInput.style.height = "auto";
+  promptInput.style.height = `${Math.min(promptInput.scrollHeight, 160)}px`;
+}
+
+// ── Live clock ──
+function updateClock() {
+  const now = new Date();
+  const formatted = now.toLocaleString("en-US", {
+    weekday: "short", year: "numeric", month: "short", day: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  });
+  const live = document.getElementById("liveClock");
+  const welcome = document.getElementById("welcomeClock");
+  if (live) live.textContent = formatted;
+  if (welcome) welcome.textContent = formatted;
+}
+
 async function init() {
+  updateStats({ sessionId });
   const stored = loadMessages();
   const serverMessages = await restoreSession(sessionId);
   messages = serverMessages ?? stored;
   renderMessages(messages);
+  updateStats({ count: countMessages() });
+
   await fetchStatus();
   setInterval(fetchStatus, 20000);
+
+  updateClock();
+  setInterval(updateClock, 1000);
+  promptInput.focus();
 }
 
-chatForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
+// ── Event wiring ──
+promptInput.addEventListener("input", autoGrow);
+
+promptInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    const content = promptInput.value.trim();
+    if (!content) return;
+    promptInput.value = "";
+    autoGrow();
+    sendMessage(content);
+  }
+  if (e.key === "Escape" && isProcessing && abortController) {
+    abortController.abort();
+    showToast("Request cancelled");
+  }
+});
+
+sendButton.addEventListener("click", () => {
   const content = promptInput.value.trim();
   if (!content) return;
   promptInput.value = "";
-  await sendMessage(content);
+  autoGrow();
+  sendMessage(content);
 });
 
 clearButton.addEventListener("click", () => {
@@ -182,10 +227,20 @@ clearButton.addEventListener("click", () => {
   messages = [];
   saveMessages(messages);
   renderMessages(messages);
+  updateStats({ count: 0 });
+  showToast("Session purged");
 });
 
 modelSelect.addEventListener("change", () => {
   selectedModel = modelSelect.value;
+  updateStats({ model: selectedModel });
+});
+
+welcomeScreen?.addEventListener("click", (e) => {
+  const btn = e.target.closest(".example-btn");
+  if (!btn) return;
+  const text = btn.dataset.example;
+  if (text) sendMessage(text);
 });
 
 init();

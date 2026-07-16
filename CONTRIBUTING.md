@@ -1,35 +1,35 @@
-# Guía de Contribución 🤝
+# Contribution Guide 🤝
 
-¡Gracias por tu interés en contribuir a **cYHBer Console**! Este es un proyecto de código abierto construido para la comunidad de desarrolladores y hackers. Todas las contribuciones (reporte de bugs, nuevas herramientas (Tools), mejoras de UI) son bienvenidas.
+Thanks for your interest in contributing to **cYHBer Console**! This is an open-source project built for the developer and hacker community. All contributions (bug reports, new tools, UI improvements) are welcome.
 
-## 🛠 Entorno de Desarrollo
+## 🛠 Development Environment
 
-El proyecto tiene una arquitectura **Zero-Dependency**. No necesitas correr `npm install`.
+The project has a **Zero-Dependency** architecture. You don't need to run `npm install`.
 
-1. Haz un Fork del repositorio.
-2. Clona tu Fork localmente: `git clone https://github.com/TU_USUARIO/cYHBeriteratus.git`
-3. Asegúrate de tener Node.js y Ollama instalados.
-4. Ejecuta el proyecto localmente: `node server.js`
+1. Fork the repository.
+2. Clone your fork locally: `git clone https://github.com/YOUR_USERNAME/cYHBeriteratus.git`
+3. Make sure you have Node.js and Ollama installed.
+4. Run the project locally: `node server.js`
 
-## 🧠 Agregando Nuevas Herramientas (Tools)
+## 🧠 Adding New Tools
 
-Si quieres enseñarle al Agente Autónomo a hacer cosas nuevas (ej. leer bases de datos, escanear puertos, etc.), sigue estos pasos:
+If you want to teach the autonomous agent to do new things (e.g. read databases, scan ports, etc.), follow these steps:
 
-1. Abre el archivo `tools.js`.
-2. Agrega la definición OpenAI-compatible de tu herramienta en el array `toolDefinitions`.
-3. Crea la función asíncrona que ejecuta la herramienta asegurando un retorno con el formato: `{ success: boolean, result?: string, error?: string }`.
-4. Añade tu función al objeto `toolExecutors` al final del archivo.
-5. Abre `server.js` y asegúrate de mencionar tu herramienta en el `agentSystemPrompt` para que el modelo sepa que existe.
+1. Open the `tools.js` file.
+2. Add the OpenAI-compatible definition of your tool to the `toolDefinitions` array.
+3. Create the async function that runs the tool, making sure it returns the format: `{ success: boolean, result?: string, error?: string }`.
+4. Add your function to the `toolExecutors` object at the end of the file.
+5. Open `server.js` and make sure you mention your tool in the `agentSystemPrompt` so the model knows it exists.
 
-> **Importante**: Mantenemos una filosofía nativa. Si tu herramienta puede ser construida usando los módulos integrados de Node (`http`, `fs`, `crypto`, `child_process`), no uses dependencias externas.
+> **Important**: We keep a native philosophy. If your tool can be built using Node's built-in modules (`http`, `fs`, `crypto`, `child_process`), don't use external dependencies.
 
-## 🐛 Reporte de Bugs y Pull Requests
+## 🐛 Bug Reports and Pull Requests
 
-- **Issues:** Si encuentras un bug o tienes una idea, abre un *Issue* describiendo claramente el problema o propuesta.
+- **Issues:** If you find a bug or have an idea, open an *Issue* clearly describing the problem or proposal.
 - **Pull Requests (PR):**
-  - Crea una rama para tu feature: `git checkout -b feature/nueva-herramienta`.
-  - Asegúrate de que el código no rompe el streaming de la interfaz.
-  - Haz un commit claro: `git commit -m "Añade herramienta para escanear puertos"`.
-  - Haz un Push y abre el PR hacia la rama `main`.
+  - Create a branch for your feature: `git checkout -b feature/new-tool`.
+  - Make sure the code doesn't break the interface streaming.
+  - Write a clear commit: `git commit -m "Add port-scanning tool"`.
+  - Push and open the PR against the `main` branch.
 
-¡Mantengamos el código rápido, ligero y peligroso! 💀
+Let's keep the code fast, lightweight and dangerous! 💀

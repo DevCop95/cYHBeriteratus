@@ -1,100 +1,265 @@
-export const chatLog = document.getElementById("chatLog");
-export const chatForm = document.getElementById("chatForm");
+import { renderMarkdown } from "./markdown.js";
+
+// ── DOM references ──
+export const chatContainer = document.getElementById("chatContainer");
+export const welcomeScreen = document.getElementById("welcomeScreen");
+export const typingIndicator = document.getElementById("typingIndicator");
+export const progressBar = document.getElementById("progressBar");
 export const promptInput = document.getElementById("promptInput");
-export const clearButton = document.getElementById("clearButton");
 export const sendButton = document.getElementById("sendButton");
-export const statusBadge = document.getElementById("statusBadge");
-export const statusText = document.getElementById("statusText");
-export const messageTemplate = document.getElementById("messageTemplate");
-export const toolTemplate = document.getElementById("toolTemplate");
+export const clearButton = document.getElementById("clearButton");
 export const modelSelect = document.getElementById("modelSelect");
 export const agentModeToggle = document.getElementById("agentModeToggle");
 export const maxRoundsInput = document.getElementById("maxRoundsInput");
+export const statusBadge = document.getElementById("statusBadge");
+export const statusDot = document.getElementById("statusDot");
+export const statusText = document.getElementById("statusText");
+export const toastEl = document.getElementById("toast");
 
-const githubSvg = '<a href="https://github.com/DevCop95/cYHBeriteratus" target="_blank" style="color:inherit;text-decoration:none"><svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>';
+const msgCountEl = document.getElementById("msgCount");
+const sessionShortEl = document.getElementById("sessionShort");
+const modelStatEl = document.getElementById("modelStat");
+const modelSelectEl = modelSelect;
+const healthDot = document.getElementById("healthDot");
+const healthStatus = document.getElementById("healthStatus");
+const footerModel = document.getElementById("footerModel");
+
+const USER_ICON =
+  '<svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+const BOT_ICON =
+  '<svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>';
+const TOOL_ICON =
+  '<svg viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>';
+
+let toastTimer = null;
 
 export function formatTime(value = new Date()) {
-  return new Intl.DateTimeFormat("es-CO", { hour: "2-digit", minute: "2-digit" }).format(value);
+  return new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }).format(value);
 }
 
+export function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2000);
+}
+
+export function hideWelcome() {
+  if (welcomeScreen) welcomeScreen.style.display = "none";
+}
+
+export function showWelcome() {
+  if (welcomeScreen) welcomeScreen.style.display = "flex";
+}
+
+function scrollToBottom() {
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+function attachCopyHandlers(node) {
+  node.querySelectorAll("[data-copy]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const pre = btn.closest(".code-header")?.nextElementSibling;
+      const code = pre?.querySelector("code")?.textContent ?? "";
+      navigator.clipboard?.writeText(code).then(() => {
+        btn.textContent = "COPIED!";
+        setTimeout(() => { btn.textContent = "COPY"; }, 1500);
+      });
+    });
+  });
+}
+
+// Build a user or assistant chat bubble. Returns the bubble element so the
+// caller can stream tokens into it.
 export function createMessageNode(entry) {
   if (entry.role === "tool_call" || entry.role === "tool_result") {
-    const fragment = toolTemplate.content.cloneNode(true);
-    const article = fragment.querySelector(".message");
-    const toolName = fragment.querySelector(".tool-name");
-    const toolStatus = fragment.querySelector(".tool-status");
-    const toolResult = fragment.querySelector(".tool-result");
-
-    fragment.querySelector(".message__time").textContent = entry.time || formatTime();
-    toolName.textContent = entry.name;
-    toolStatus.textContent = entry.role === "tool_call" ? "Ejecutando..." : (entry.success ? "Completado" : "Error");
-    toolStatus.className = `tool-status ${entry.role === "tool_call" ? "spinner" : (entry.success ? "success" : "error")}`;
-
-    if (entry.content) {
-      toolResult.textContent = entry.content;
-      toolResult.classList.remove("hidden");
-    }
-    article.dataset.role = entry.role;
-    return article;
+    return createToolNode(entry);
   }
 
-  const fragment = messageTemplate.content.cloneNode(true);
-  const article = fragment.querySelector(".message");
-  article.classList.add(entry.role === "user" ? "message--user" : "message--assistant");
-  fragment.querySelector(".message__role").textContent = entry.role === "user" ? "OPERADOR" : "WRONG GPT";
-  fragment.querySelector(".message__time").textContent = entry.time || formatTime();
-  fragment.querySelector(".message__content").textContent = entry.content;
-  article.dataset.role = entry.role;
-  return article;
+  const isUser = entry.role === "user";
+  const message = document.createElement("div");
+  message.className = `message ${isUser ? "user" : "assistant"}`;
+
+  const label = document.createElement("div");
+  label.className = "message-label";
+  label.innerHTML = `${isUser ? USER_ICON : BOT_ICON} ${isUser ? "OPERATOR" : "WRONG GPT"}`;
+
+  // Collapsible "chain of thought" section (assistant only, filled on demand).
+  let reasoning = null;
+  if (!isUser) {
+    reasoning = document.createElement("div");
+    reasoning.className = "reasoning-section";
+    reasoning.style.display = "none";
+    const toggle = document.createElement("span");
+    toggle.className = "thinking-toggle";
+    toggle.innerHTML = '<span class="toggle-arrow">▶</span> CHAIN OF THOUGHT';
+    const content = document.createElement("div");
+    content.className = "thinking-content";
+    toggle.addEventListener("click", () => {
+      content.classList.toggle("show");
+      toggle.classList.toggle("open");
+    });
+    reasoning.append(toggle, content);
+    message._thinking = content;
+    message._reasoning = reasoning;
+  }
+
+  const bubble = document.createElement("div");
+  bubble.className = "message-bubble";
+  if (isUser) {
+    bubble.textContent = entry.content;
+  } else {
+    bubble.innerHTML = renderMarkdown(entry.content || "");
+    attachCopyHandlers(bubble);
+  }
+
+  const meta = document.createElement("div");
+  meta.className = "message-meta";
+  const time = document.createElement("span");
+  time.textContent = entry.time || formatTime();
+  const copy = document.createElement("button");
+  copy.className = "copy-btn";
+  copy.textContent = "COPY";
+  copy.addEventListener("click", () => {
+    navigator.clipboard?.writeText(bubble.textContent).then(() => showToast("Copied"));
+  });
+  meta.append(time, copy);
+
+  if (reasoning) {
+    message.append(label, reasoning, bubble, meta);
+  } else {
+    message.append(label, bubble, meta);
+  }
+  message._bubble = bubble;
+  return message;
+}
+
+// Append streamed reasoning text to an assistant node's thinking panel.
+export function updateThinking(node, thinking) {
+  if (!node._thinking || !node._reasoning) return;
+  node._thinking.textContent = thinking;
+  node._reasoning.style.display = "";
+  scrollToBottom();
+}
+
+function createToolNode(entry) {
+  const message = document.createElement("div");
+  message.className = "message tool";
+
+  const card = document.createElement("div");
+  card.className = "tool-card";
+
+  const label = document.createElement("div");
+  label.className = "message-label";
+  label.innerHTML = `${TOOL_ICON} SYSTEM`;
+
+  const header = document.createElement("div");
+  header.className = "tool-header";
+  const name = document.createElement("span");
+  name.className = "tool-name";
+  name.textContent = entry.name || "tool";
+  const status = document.createElement("span");
+  const running = entry.role === "tool_call";
+  status.className = `tool-status ${running ? "spinner" : entry.success ? "success" : "error"}`;
+  status.textContent = running ? "Running..." : entry.success ? "Done" : "Error";
+  header.append(name, status);
+
+  const result = document.createElement("pre");
+  result.className = "tool-result";
+  if (entry.content) {
+    result.textContent = entry.content;
+  } else {
+    result.style.display = "none";
+  }
+
+  card.append(label, header, result);
+  message.append(card);
+  message._status = status;
+  message._result = result;
+  return message;
+}
+
+// Set the streamed markdown content of an assistant bubble.
+export function updateBubble(bubble, content) {
+  bubble.innerHTML = renderMarkdown(content);
+  attachCopyHandlers(bubble);
+  scrollToBottom();
+}
+
+export function appendNode(node) {
+  chatContainer.appendChild(node);
+  scrollToBottom();
+  return node;
 }
 
 export function renderMessages(messages) {
-  chatLog.innerHTML = "";
+  chatContainer.querySelectorAll(".message").forEach((n) => n.remove());
   if (!messages.length) {
-    const empty = document.createElement("article");
-    empty.className = "message message--assistant";
-    empty.innerHTML =
-      '<div class="message__chrome"><span class="message__role">&#x2620; SISTEMA</span><span class="message__time">' +
-      formatTime() +
-      '</span></div><p class="message__content">[ACCESO NO AUTORIZADO] Terminal lista. Escribe tu primer mensaje para iniciar la sesion con el modelo local.</p>';
-    chatLog.appendChild(empty);
+    showWelcome();
   } else {
-    messages.forEach((entry) => chatLog.appendChild(createMessageNode(entry)));
+    hideWelcome();
+    messages.forEach((entry) => chatContainer.appendChild(createMessageNode(entry)));
   }
-  chatLog.scrollTop = chatLog.scrollHeight;
+  scrollToBottom();
 }
 
 export function setBusy(isBusy) {
   sendButton.disabled = isBusy;
   promptInput.disabled = isBusy;
-  sendButton.textContent = isBusy ? "ENVIANDO..." : "☢ ENVIAR ☢";
+  typingIndicator.classList.toggle("show", isBusy);
+  progressBar.classList.toggle("active", isBusy);
+  if (isBusy) {
+    // Keep the typing indicator at the very bottom of the log.
+    chatContainer.appendChild(typingIndicator);
+    scrollToBottom();
+  }
+}
+
+export function updateStats({ count, sessionId, model }) {
+  if (count !== undefined) msgCountEl.textContent = count;
+  if (sessionId !== undefined) sessionShortEl.textContent = sessionId.slice(0, 8);
+  if (model !== undefined) {
+    modelStatEl.textContent = model || "-";
+    footerModel.textContent = model ? `${model} via Ollama` : "local model via Ollama";
+  }
 }
 
 export function setStatus({ ok, model, error, availableModels }, selectedModel) {
-  statusBadge.classList.remove("online", "offline");
   if (ok) {
     statusBadge.classList.add("online");
-    statusText.innerHTML = githubSvg + "DEV101";
+    statusDot.className = "status-dot";
+    statusText.textContent = "ONLINE";
+    healthDot.className = "health-dot online";
+    healthStatus.textContent = "Online";
+
     const allModels = availableModels || [];
     if (allModels.length > 0) {
       const activeModel = selectedModel || model;
-      modelSelect.replaceChildren(...allModels.map((name) => {
-        const opt = document.createElement("option");
-        opt.value = name;
-        opt.textContent = name;
-        opt.selected = name === activeModel;
-        return opt;
-      }));
-      modelSelect.disabled = false;
-      return selectedModel || model || allModels[0];
+      modelSelectEl.replaceChildren(
+        ...allModels.map((name) => {
+          const opt = document.createElement("option");
+          opt.value = name;
+          opt.textContent = name;
+          opt.selected = name === activeModel;
+          return opt;
+        })
+      );
+      modelSelectEl.disabled = false;
+      const active = selectedModel || model || allModels[0];
+      updateStats({ model: active });
+      return active;
     }
-    modelSelect.innerHTML = '<option value="">No hay modelos instalados</option>';
-    modelSelect.disabled = true;
+    modelSelectEl.innerHTML = '<option value="">No models installed</option>';
+    modelSelectEl.disabled = true;
   } else {
-    statusBadge.classList.add("offline");
-    statusText.textContent = error ? `FALLO: ${error}` : "ENLACE CORTADO";
-    modelSelect.innerHTML = '<option value="">Sin conexion</option>';
-    modelSelect.disabled = true;
+    statusBadge.classList.remove("online");
+    statusDot.className = "status-dot offline";
+    statusText.textContent = error ? "OFFLINE" : "LINK DOWN";
+    healthDot.className = "health-dot offline";
+    healthStatus.textContent = "Offline";
+    modelSelectEl.innerHTML = '<option value="">No connection</option>';
+    modelSelectEl.disabled = true;
+    if (error) showToast(error);
   }
   return selectedModel;
 }

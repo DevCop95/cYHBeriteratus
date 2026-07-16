@@ -1,129 +1,126 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Wrong GPT // Undeground Terminal</title>
+    <title>Wrong GPT // Underground Terminal</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💀</text></svg>" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800;900&family=Share+Tech+Mono&family=Creepster&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="noise"></div>
-    <div class="grid"></div>
-    <div class="vignette"></div>
-    <div class="scan-overlay"></div>
+    <header class="topbar">
+      <div class="logo">☠</div>
+      <div class="title-section">
+        <h1>WRONG GPT</h1>
+        <div class="subtitle" id="liveClock"></div>
+      </div>
 
-    <main class="shell">
-      <section class="hero panel scanlines">
-        <div class="hero__header">
-            <div>
-              <h1 class="glitch" data-text="Wrong GPT">Wrong GPT</h1>
-            </div>
-            <div class="status-badge" id="statusBadge">
-              <span id="statusText">SIN VERIFICAR</span>
-            </div>
+      <div class="controls">
+        <select id="modelSelect" class="model-select" title="Local model" disabled>
+          <option value="">Loading models...</option>
+        </select>
+
+        <label class="agent-toggle" title="Enable system tools">
+          <input type="checkbox" id="agentModeToggle" checked />
+          <span class="slider"></span>
+          <span class="agent-toggle__label">AGENT</span>
+        </label>
+
+        <label class="rounds-control" title="Max tool rounds per response">
+          <span>ROUNDS</span>
+          <input type="number" id="maxRoundsInput" class="rounds-input" min="1" max="20" value="8" />
+        </label>
+
+        <div class="info-badge" id="statusBadge">
+          <span class="status-dot offline" id="statusDot"></span>
+          <span id="statusText">UNVERIFIED</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="stats-bar">
+      <span>Messages: <span id="msgCount">0</span></span>
+      <span>Session: <span id="sessionShort">-</span></span>
+      <span>Model: <span id="modelStat">-</span></span>
+    </div>
+
+    <div class="progress-bar" id="progressBar"></div>
+
+    <main class="chat-container" id="chatContainer">
+      <section class="welcome-screen" id="welcomeScreen">
+        <div class="ascii-art-container">
+          <pre class="ascii-art">
+ ██╗    ██╗██████╗  ██████╗ ███╗   ██╗ ██████╗
+ ██║    ██║██╔══██╗██╔═══██╗████╗  ██║██╔════╝
+ ██║ █╗ ██║██████╔╝██║   ██║██╔██╗ ██║██║  ███╗
+ ██║███╗██║██╔══██╗██║   ██║██║╚██╗██║██║   ██║
+ ╚███╔███╔╝██║  ██║╚██████╔╝██║ ╚████║╚██████╔╝
+  ╚══╝╚══╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝ </pre>
+          <div class="blood-drips">
+            <div class="drip" style="left:8%;  --drip-duration:2.8s; --drip-delay:0.2s; --drip-height:14px;"></div>
+            <div class="drip" style="left:18%; --drip-duration:3.5s; --drip-delay:1.1s; --drip-height:22px;"></div>
+            <div class="drip" style="left:28%; --drip-duration:2.2s; --drip-delay:0.7s; --drip-height:10px;"></div>
+            <div class="drip" style="left:38%; --drip-duration:4.0s; --drip-delay:0.0s; --drip-height:26px;"></div>
+            <div class="drip" style="left:48%; --drip-duration:3.1s; --drip-delay:1.5s; --drip-height:18px;"></div>
+            <div class="drip" style="left:58%; --drip-duration:2.6s; --drip-delay:0.4s; --drip-height:12px;"></div>
+            <div class="drip" style="left:68%; --drip-duration:3.8s; --drip-delay:0.9s; --drip-height:24px;"></div>
+            <div class="drip" style="left:78%; --drip-duration:2.4s; --drip-delay:1.8s; --drip-height:16px;"></div>
+            <div class="drip" style="left:88%; --drip-duration:3.3s; --drip-delay:0.3s; --drip-height:20px;"></div>
           </div>
-
-          <div class="model-selector">
-            <label for="modelSelect" class="model-selector__label">MODELO LOCAL</label>
-            <select id="modelSelect" class="model-selector__select" disabled>
-              <option value="">Cargando modelos...</option>
-            </select>
-            
-            <div class="agent-toggle">
-              <label class="toggle-switch">
-                <input type="checkbox" id="agentModeToggle" checked>
-                <span class="slider"></span>
-              </label>
-              <span class="agent-toggle__label">MODO AGENTE (TOOLS)</span>
-            </div>
-
-            <div class="rounds-control">
-              <label for="maxRoundsInput" class="model-selector__label">RONDAS</label>
-              <input type="number" id="maxRoundsInput" class="rounds-input" min="1" max="20" value="8" title="Máximo de rondas de herramientas por respuesta">
-            </div>
-          </div>
-
-        <div class="hero__body">
-          <div class="hero__signature">
-            <pre class="ascii-skull" aria-hidden="true">
-
-    ██╗    ██╗ ██████╗ ██████╗ ██╗  ██╗██╗      ██████╗  █████╗ ██████╗ ███████╗██████╗ 
-    ██║    ██║██╔═══██╗██╔══██╗██║ ██╔╝██║     ██╔═══██╗██╔══██╗██╔══██╗██╔════╝██╔══██╗
-    ██║ █╗ ██║██║   ██║██████╔╝█████╔╝ ██║     ██║   ██║███████║██║  ██║█████╗  ██████╔╝
-    ██║███╗██║██║   ██║██╔══██╗██╔═██╗ ██║     ██║   ██║██╔══██║██║  ██║██╔══╝  ██╔══██╗
-    ╚███╔███╔╝╚██████╔╝██║  ██║██║  ██╗███████╗╚██████╔╝██║  ██║██████╔╝███████╗██║  ██║
-     ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝  ╚═╝
-            </pre>
-          </div>
-
+          <div class="drip-pool"></div>
+        </div>
+        <div class="welcome-subtitle welcome-subtitle--brand">U N D E R G R O U N D&nbsp;&nbsp;T E R M I N A L</div>
+        <div class="welcome-subtitle" id="welcomeClock"></div>
+        <div class="welcome-examples">
+          <button class="example-btn" type="button" data-example="Summarize the latest news about local LLMs">Read the web</button>
+          <button class="example-btn" type="button" data-example="List the files in the current directory">List files</button>
+          <button class="example-btn" type="button" data-example="What is my operating system and Node version?">System info</button>
+          <button class="example-btn" type="button" data-example="Search the web for abliterated Ollama models">Web search</button>
         </div>
       </section>
 
-      <section class="dashboard">
-        <div class="panel chat-panel chat-panel--dark">
-          <div class="chat-panel__header">
-            <div>
-              <h2>Intercept Channel</h2>
-            </div>
-            <button id="clearButton" class="ghost-button ghost-button--danger" type="button">
-              PURGE DATA
-            </button>
-          </div>
-
-          <div id="chatLog" class="chat-log" aria-live="polite"></div>
-
-          <form id="chatForm" class="composer composer--dark">
-            <label class="composer__field">
-              <span class="sr-only">Mensaje</span>
-              <textarea
-                id="promptInput"
-                rows="3"
-                placeholder="[ENCRYPTED] Escribe tu mensaje... los rastros se borran..."
-                required
-              ></textarea>
-            </label>
-            <div class="composer__actions">
-              <button id="sendButton" class="primary-button primary-button--danger" type="submit">
-                &#x2622; ENVIAR &#x2622;
-              </button>
-            </div>
-          </form>
-        </div>
-      </section>
+      <div class="typing-indicator" id="typingIndicator">
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+      </div>
     </main>
 
-    <template id="messageTemplate">
-      <article class="message">
-        <div class="message__chrome">
-          <span class="message__role"></span>
-          <span class="message__time"></span>
+    <div class="input-container">
+      <div class="input-wrapper">
+        <textarea
+          id="promptInput"
+          placeholder="[ENCRYPTED] Type your message... (Ctrl+Enter to send)"
+          rows="1"
+        ></textarea>
+        <div class="btn-group">
+          <button id="sendButton" class="btn btn--send" type="button" title="Send (Ctrl+Enter)">
+            <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
+            SEND
+          </button>
+          <button id="clearButton" class="btn btn--danger" type="button" title="Purge session">
+            <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" /></svg>
+          </button>
         </div>
-        <p class="message__content"></p>
-      </article>
-    </template>
+      </div>
+    </div>
 
-    <template id="toolTemplate">
-      <article class="message message--tool">
-        <div class="message__chrome">
-          <span class="message__role">&#x1F6E0; SISTEMA</span>
-          <span class="message__time"></span>
-        </div>
-        <div class="message__content tool-content">
-          <div class="tool-header">
-            <span class="tool-name"></span>
-            <span class="tool-status spinner">Ejecutando...</span>
-          </div>
-          <pre class="tool-result hidden"></pre>
-        </div>
-      </article>
-    </template>
+    <footer class="footer-info">
+      <div class="health-indicator">
+        <span class="health-dot" id="healthDot"></span>
+        <span>Ollama: <span id="healthStatus">Checking...</span></span>
+      </div>
+      <span id="footerModel">local model via Ollama</span>
+      <span>Ctrl+Enter: Send | Esc: Cancel</span>
+    </footer>
+
+    <div class="toast" id="toast"></div>
 
     <script type="module" src="/app.js"></script>
   </body>

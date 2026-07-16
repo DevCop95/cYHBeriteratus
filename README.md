@@ -1,88 +1,88 @@
 # cYHBer Console 💀
 
-![Portada](public/img/hack1.png)
+![Cover](public/img/hack1.png)
 
-Una interfaz web local estilo cyberpunk / hacker conectada a `Ollama` que soporta **Agentes Autónomos (Tool Calling)**, **modelos abliterated** (sin censura), streaming fluido en tiempo real, y una arquitectura segura "Zero-Dependency" (sin módulos externos npm).
+A local, cyberpunk / hacker-style web interface wired to `Ollama` that supports **Autonomous Agents (Tool Calling)**, **abliterated models** (uncensored), smooth real-time streaming, and a secure "Zero-Dependency" architecture (no external npm modules).
 
-## 🔥 Características
+## 🔥 Features
 
-- **UI Cyberpunk:** Efectos de interferencia (glitch), scanlines y animaciones retro.
-- **Motor de Agentes (Tools):** El modelo puede ejecutar acciones reales en tu computadora si activas el modo agente:
-  - `web_fetch`: Leer artículos de internet (con caché 60s para evitar peticiones duplicadas).
-  - `web_search`: Buscar en internet vía DuckDuckGo (con caché 60s, manejo de redirects, fallback de extracción de links).
-  - `read_file` / `write_file` / `list_directory`: Operar en tu sistema de archivos (con Sandboxing).
-  - `run_command`: Ejecutar comandos en PowerShell (no-bloqueante, via `execFile`).
-- **Persistencia de Sesiones:** El historial de conversación se almacena en el servidor (en memoria, TTL 24h). Al abrir una nueva pestaña el contexto se restaura automáticamente desde el servidor, sin perder ningún mensaje.
-- **Control de Rondas del Agente:** Input numérico (1–20) en la barra de herramientas para controlar cuántas rondas de tools puede ejecutar el agente por respuesta, sin editar archivos.
-- **Seguridad (Sandboxing):**
-  - Prevención de Directory Traversal (la IA no puede escapar del directorio del proyecto).
-  - Bloqueo SSRF contra IPv4 e IPv6 (la IA no puede escanear tu red local usando `web_fetch`).
-  - Rate Limiting con limpieza automática de memoria y protección contra payloads gigantes.
-  - Validación de tipo en todos los campos de mensajes (`role` y `content`).
-  - CSP headers para prevenir XSS.
-- **Selector en Vivo:** Cambia de modelo al vuelo desde la interfaz sin tener que reiniciar el servidor.
-- **Streaming eficiente:** Loop agentico y modo chat comparten el mismo núcleo de streaming (`ollamaStreamRound`) — sin duplicación de código.
-- **Gestión de memoria:** Ventana deslizante de historial (últimos 20 mensajes) para evitar desbordes de contexto en sesiones largas.
-- **Limpieza ante desconexión:** Si el cliente cierra la pestaña a mitad de una respuesta, el loop agentico y la petición a Ollama se cancelan de inmediato.
-- **Test suite integrada:** 59 tests con `npm test` usando el runner nativo de Node.js — sin dependencias externas.
+- **Chat UI (Termux-style):** A messaging-app layout with left/right chat bubbles, live Markdown rendering (headings, lists, links, code blocks with copy buttons), a blood-drip welcome screen, typing indicator, toast notifications, and a live clock — all in a black-and-blood-red terminal aesthetic.
+- **Agent Engine (Tools):** The model can run real actions on your machine when agent mode is enabled:
+  - `web_fetch`: read articles from the internet (60s cache to avoid duplicate requests).
+  - `web_search`: search the web via DuckDuckGo (60s cache, redirect handling, link-extraction fallback).
+  - `read_file` / `write_file` / `list_directory`: operate on your filesystem (sandboxed).
+  - `run_command`: run commands in PowerShell (non-blocking, via `execFile`).
+- **Session persistence:** Conversation history is stored on the server (in memory, 24h TTL). Opening a new tab restores the context automatically from the server without losing any messages.
+- **Agent rounds control:** A numeric input (1–20) in the toolbar controls how many tool rounds the agent may run per response, without editing files.
+- **Security (Sandboxing):**
+  - Directory-traversal prevention (the model cannot escape the project directory).
+  - SSRF blocking for IPv4 and IPv6 (the model cannot scan your local network via `web_fetch`).
+  - Rate limiting with automatic memory cleanup and protection against oversized payloads.
+  - Type validation on every message field (`role` and `content`).
+  - CSP headers to prevent XSS.
+- **Live selector:** Switch models on the fly from the interface without restarting the server.
+- **Efficient streaming:** The agent loop and chat mode share the same streaming core (`ollamaStreamRound`) — no duplicated code.
+- **Memory management:** Sliding history window (last 20 messages) to avoid context overflow in long sessions.
+- **Disconnect cleanup:** If the client closes the tab mid-response, the agent loop and the Ollama request are cancelled immediately.
+- **Built-in test suite:** 59 tests with `npm test` using the native Node.js runner — no external dependencies.
 
 ---
 
-## 🛠 Instalación Rápida
+## 🛠 Quick Install
 
-### 1. Instalar Prerrequisitos
-Asegúrate de tener instalados:
-- **[Node.js](https://nodejs.org/es/)** v18 o superior.
+### 1. Install prerequisites
+Make sure you have installed:
+- **[Node.js](https://nodejs.org/en/)** v18 or newer.
 - **[Ollama](https://ollama.com/download)**.
 
-### 2. Configurar variables de entorno (opcional)
-Copia `.env.example` a `.env` y ajusta los valores según tu entorno:
+### 2. Configure environment variables (optional)
+Copy `.env.example` to `.env` and adjust the values for your setup:
 
 ```powershell
 copy .env.example .env
 ```
 
-| Variable | Default | Descripción |
+| Variable | Default | Description |
 |---|---|---|
-| `APP_PORT` | `4000` | Puerto de la interfaz web |
-| `OLLAMA_HOST` | `127.0.0.1` | Host de Ollama |
-| `OLLAMA_PORT` | `11434` | Puerto de Ollama |
-| `OLLAMA_MODEL` | `richardyoung/qwen2.5-3b-instruct-abliterated` | Modelo por defecto |
-| `OLLAMA_NUM_GPU` | `null` (auto) | Capas en GPU. `0` = forzar CPU |
-| `LOG_LEVEL` | `INFO` | Nivel de log: `DEBUG`, `INFO`, `WARN`, `ERROR` |
+| `APP_PORT` | `4000` | Web interface port |
+| `OLLAMA_HOST` | `127.0.0.1` | Ollama host |
+| `OLLAMA_PORT` | `11434` | Ollama port |
+| `OLLAMA_MODEL` | `richardyoung/qwen2.5-3b-instruct-abliterated` | Default model |
+| `OLLAMA_NUM_GPU` | `null` (auto) | GPU layers. `0` = force CPU |
+| `LOG_LEVEL` | `INFO` | Log level: `DEBUG`, `INFO`, `WARN`, `ERROR` |
 
-### 3. Descargar los Modelos
-Abre tu terminal (PowerShell o CMD) y descarga los modelos recomendados. El sistema detectará automáticamente los que tengas instalados.
+### 3. Download the models
+Open your terminal (PowerShell or CMD) and pull the recommended models. The system auto-detects the ones you have installed.
 
 ```powershell
-# Opción 1: Qwen3 8B abliterated — razonamiento + tool calling, el más completo (~6 GB VRAM)
+# Option 1: Qwen3 8B abliterated — reasoning + tool calling, most complete (~6 GB VRAM)
 ollama pull huihui_ai/qwen3-abliterated:8b
 
-# Opción 2: Josiefied-Qwen3 8B — uncensored sin perder tool calling (~6 GB VRAM)
+# Option 2: Josiefied-Qwen3 8B — uncensored without losing tool calling (~6 GB VRAM)
 ollama pull goekdenizguelmez/JOSIEFIED-Qwen3:8b
 
-# Opción 3: Granite 4.1 3B abliterated — moderno, con tools, ideal para PCs estándar
+# Option 3: Granite 4.1 3B abliterated — modern, with tools, ideal for standard PCs
 ollama pull huihui_ai/granite4.1-abliterated:3b
 
-# Opción 4: NeuralDaredevil 8B — mejor 8B clásico en Open LLM Leaderboard (solo chat, sin tools)
+# Option 4: NeuralDaredevil 8B — best classic 8B on the Open LLM Leaderboard (chat only, no tools)
 ollama pull closex/neuraldaredevil-8b-abliterated
 
-# Opción 5: Abliterated 3B — para PCs de muy bajos recursos (modelo por defecto)
+# Option 5: Abliterated 3B — for very low-resource PCs (default model)
 ollama pull richardyoung/qwen2.5-3b-instruct-abliterated
 ```
 
-> **Importante para el Modo Agente:** las herramientas (tools) solo funcionan con modelos que soporten *tool calling* (familias Qwen2.5/Qwen3, Granite, Gemma con tag `tools`). Los modelos basados en Llama 3 clásico como NeuralDaredevil sirven solo para el modo chat.
+> **Important for Agent Mode:** tools only work with models that support *tool calling* (Qwen2.5/Qwen3, Granite, Gemma families with a `tools` tag). Classic Llama 3–based models like NeuralDaredevil work in chat mode only.
 
-*(Nota: Asegúrate de que Ollama esté corriendo en segundo plano, por defecto en el puerto `11434`)*
+*(Note: make sure Ollama is running in the background, by default on port `11434`.)*
 
-### 4. Iniciar el Servidor de cYHBer Console
+### 4. Start the cYHBer Console server
 
 ```powershell
 node server.js
 ```
 
-### 5. Entrar al Sistema
-Abre tu navegador web y entra a:
+### 5. Enter the system
+Open your web browser and go to:
 👉 **[http://127.0.0.1:4000](http://127.0.0.1:4000)**
 
 ---
@@ -93,33 +93,34 @@ Abre tu navegador web y entra a:
 npm test
 ```
 
-Cubre: validación de mensajes, rate limiter, niveles de log, protección SSRF (21 casos IPv4/IPv6), sandboxing de rutas, operaciones de archivos y ejecución de comandos. Sin dependencias externas — usa el runner nativo `node:test`.
+Covers: message validation, rate limiter, log levels, SSRF protection (21 IPv4/IPv6 cases), path sandboxing, file operations and command execution. No external dependencies — uses the native `node:test` runner.
 
 ---
 
-## 🏗 Arquitectura del Proyecto
+## 🏗 Project Architecture
 
-Este proyecto no requiere `npm install` porque utiliza únicamente módulos nativos de Node (`http`, `fs`, `path`, etc.) para máxima velocidad y seguridad.
+This project does not require `npm install` because it uses only native Node modules (`http`, `fs`, `path`, etc.) for maximum speed and security.
 
 ```text
 cYHBeriteratus/
-├─ server.js              # Rutas HTTP, ollamaStreamRound, loop agentico, sesiones
-├─ tools.js               # Herramientas del agente: sandboxing, caché, SSRF IPv4/IPv6
+├─ server.js              # HTTP routes, ollamaStreamRound, agent loop, sessions
+├─ tools.js               # Agent tools: sandboxing, cache, IPv4/IPv6 SSRF
 ├─ src/
-│  ├─ config.js           # Configuraciones globales y variables de entorno
+│  ├─ config.js           # Global config and environment variables
 │  ├─ utils/
-│  │  └─ logger.js        # Log estructurado, nivel configurable via LOG_LEVEL
+│  │  └─ logger.js        # Structured logging, level via LOG_LEVEL
 │  └─ middlewares/
-│     ├─ security.js      # Rate-limiting (con limpieza automática) y CSP headers
-│     └─ validator.js     # Validación de role y content en mensajes
+│     ├─ security.js      # Rate-limiting (with auto-cleanup) and CSP headers
+│     └─ validator.js     # role/content validation on messages
 ├─ public/
-│  ├─ index.html          # UI Base
-│  ├─ styles.css          # Animaciones Cyberpunk
-│  ├─ app.js              # Orquestador frontend (ES modules, ~130 líneas)
+│  ├─ index.html          # Chat UI (Termux-style)
+│  ├─ styles.css          # Terminal / blood-red styling
+│  ├─ app.js              # Frontend orchestrator (ES modules)
 │  └─ modules/
-│     ├─ session.js       # Gestión de sesión: localStorage + sync con servidor
-│     ├─ ui.js            # Referencias DOM y funciones de presentación
-│     └─ stream.js        # Parser de NDJSON streaming con callbacks
+│     ├─ session.js       # Session handling: localStorage + server sync
+│     ├─ ui.js            # DOM refs, chat bubbles, tool cards, status
+│     ├─ stream.js        # NDJSON streaming parser with callbacks
+│     └─ markdown.js      # Dependency-free, CSP-safe Markdown renderer
 ├─ tests/
 │  ├─ validator.test.js
 │  ├─ security.test.js
@@ -128,22 +129,22 @@ cYHBeriteratus/
 │  ├─ tools.ssrf.test.js
 │  ├─ tools.files.test.js
 │  └─ tools.command.test.js
-├─ detect-abliterated.py  # Detecta modelos abliterated via API REST de Ollama
-└─ .env.example           # Plantilla de variables de entorno
+├─ detect-abliterated.py  # Detects abliterated models via Ollama's REST API
+└─ .env.example           # Environment variable template
 ```
 
-## 🔒 Modo Agente (Tool Calling)
-En la parte superior de la pantalla encontrarás un **Switch (Toggle)** para activar el "MODO AGENTE (TOOLS)" y un **input numérico** para controlar las rondas máximas (1–20).
+## 🔒 Agent Mode (Tool Calling)
+At the top of the screen you'll find a **toggle** to enable "AGENT" mode and a **numeric input** to control the max rounds (1–20).
 
-- **APAGADO:** El modelo actúa como un ChatGPT estándar (respuestas de texto normales, rápidas).
-- **ENCENDIDO:** El modelo pensará antes de responder y podrá decidir usar herramientas del sistema (buscar en la red, correr scripts, etc.) para cumplir tu orden.
+- **OFF:** The model acts as a standard chatbot (normal, fast text responses).
+- **ON:** The model reasons before answering and may decide to use system tools (search the web, run scripts, etc.) to fulfill your request.
 
-> **Advertencia:** El modelo puede modificar archivos dentro del proyecto. ¡Úsalo bajo tu propia responsabilidad!
+> **Warning:** The model can modify files inside the project. Use it at your own risk!
 
-## 🔍 Detectar Modelos Abliterated
+## 🔍 Detect Abliterated Models
 
 ```powershell
 python detect-abliterated.py
 ```
 
-Consulta la API REST de Ollama (`/api/tags`) y lista todos los modelos abliterated instalados con su tamaño real en GB/MB.
+Queries Ollama's REST API (`/api/tags`) and lists all installed abliterated models with their real size in GB/MB.

@@ -33,7 +33,7 @@ test("blocks web_fetch to 10.0.0.1 (RFC1918)", async () => {
 test("returns error for unknown tool name", async () => {
   const r = await executeTool("nonexistent_tool", {});
   assert.equal(r.success, false);
-  assert.ok(r.error.includes("desconocida"), `Expected 'desconocida' in error, got: ${r.error}`);
+  assert.ok(r.error.includes("Unknown"), `Expected 'Unknown' in error, got: ${r.error}`);
 });
 
 test("blocks web_fetch with missing url", async () => {

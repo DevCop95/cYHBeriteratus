@@ -29,7 +29,7 @@ function setCachedFetch(key, result) {
   fetchCache.set(key, { result, expiry: Date.now() + FETCH_CACHE_TTL_MS });
 }
 
-// Utility to check if IP is private (SSRF Protection)
+// Check whether an IP is private (SSRF protection)
 function isPrivateIP(ip) {
   // IPv6 loopback and private/link-local ranges
   if (ip === "::1" || ip === "::" || ip.startsWith("fc") || ip.startsWith("fd") || ip.startsWith("fe80") || ip.startsWith("::ffff:")) return true;
@@ -45,11 +45,11 @@ function isPrivateIP(ip) {
   );
 }
 
-// Utility to sandbox paths (Directory Traversal Protection)
+// Sandbox user-supplied paths (directory traversal protection)
 function resolveSafePath(userPath) {
   const resolved = path.resolve(WORKSPACE_DIR, userPath);
   if (!resolved.startsWith(WORKSPACE_DIR)) {
-    throw new Error(`Acceso denegado: La ruta está fuera del sandbox permitido (${WORKSPACE_DIR})`);
+    throw new Error(`Access denied: path is outside the allowed sandbox (${WORKSPACE_DIR})`);
   }
   return resolved;
 }
@@ -199,12 +199,12 @@ async function toolWebFetch(args) {
   try {
     const targetUrl = new URL(url);
     if (targetUrl.protocol !== "http:" && targetUrl.protocol !== "https:") {
-      return { success: false, error: "Solo se permite http y https" };
+      return { success: false, error: "Only http and https are allowed" };
     }
 
     const lookup = await dns.lookup(targetUrl.hostname);
     if (isPrivateIP(lookup.address)) {
-      return { success: false, error: "Bloqueado: Intento de acceso a red interna (SSRF)" };
+      return { success: false, error: "Blocked: attempt to access internal network (SSRF)" };
     }
 
     return await new Promise((resolve) => {
@@ -232,7 +232,7 @@ async function toolWebFetch(args) {
 
 async function toolWebSearch(args) {
   const { query } = args;
-  if (!query) return { success: false, error: "Se requiere un parametro de busqueda." };
+  if (!query) return { success: false, error: "A search query is required." };
 
   const cacheKey = `search:${query}`;
   const cached = getCachedFetch(cacheKey);
@@ -269,7 +269,7 @@ async function toolWebSearch(args) {
       let match;
       while ((match = regex.exec(raw)) !== null && results.length < 5) {
         const snippet = stripHtml(match[3]).trim();
-        if (snippet) results.push(`URL: ${match[2].trim()}\nEnlace: ${match[1]}\nResumen: ${snippet}\n`);
+        if (snippet) results.push(`Title: ${match[2].trim()}\nLink: ${match[1]}\nSummary: ${snippet}\n`);
       }
     }
 
@@ -283,7 +283,7 @@ async function toolWebSearch(args) {
         const text = stripHtml(m[2]).trim();
         if (!seen.has(link) && !link.includes("duckduckgo.com")) {
           seen.add(link);
-          results.push(`Enlace: ${link}\nTexto: ${text}\n`);
+          results.push(`Link: ${link}\nText: ${text}\n`);
         }
       }
     }
@@ -301,7 +301,7 @@ async function toolWebSearch(args) {
 
 function toolRunCommand(args) {
   const { command } = args;
-  if (!command) return Promise.resolve({ success: false, error: "No se especifico ningun comando." });
+  if (!command) return Promise.resolve({ success: false, error: "No command specified." });
 
   return new Promise((resolve) => {
     execFile(
@@ -317,11 +317,11 @@ function toolRunCommand(args) {
       (err, stdout, stderr) => {
         if (err) {
           let errorMsg = stderr || stdout || err.message;
-          if (errorMsg.length > MAX_CMD_OUTPUT) errorMsg = errorMsg.slice(0, MAX_CMD_OUTPUT) + "\n\n[... error truncado ...]";
+          if (errorMsg.length > MAX_CMD_OUTPUT) errorMsg = errorMsg.slice(0, MAX_CMD_OUTPUT) + "\n\n[... error truncated ...]";
           resolve({ success: false, error: errorMsg });
         } else {
-          let result = stdout || "(sin salida)";
-          if (result.length > MAX_CMD_OUTPUT) result = result.slice(0, MAX_CMD_OUTPUT) + "\n\n[... salida truncada ...]";
+          let result = stdout || "(no output)";
+          if (result.length > MAX_CMD_OUTPUT) result = result.slice(0, MAX_CMD_OUTPUT) + "\n\n[... output truncated ...]";
           resolve({ success: true, result });
         }
       }
@@ -331,19 +331,19 @@ function toolRunCommand(args) {
 
 async function toolReadFile(args) {
   const { file_path } = args;
-  if (!file_path) return { success: false, error: "No se especifico la ruta del archivo." };
+  if (!file_path) return { success: false, error: "No file path specified." };
 
   try {
     const safePath = resolveSafePath(file_path);
     const stat = await fs.stat(safePath);
 
     if (!stat.isFile()) {
-      return { success: false, error: "La ruta no es un archivo." };
+      return { success: false, error: "The path is not a file." };
     }
 
     let content = await fs.readFile(safePath, "utf8");
     if (content.length > MAX_FILE_BYTES) {
-      content = content.slice(0, MAX_FILE_BYTES) + "\n\n[... contenido truncado ...]";
+      content = content.slice(0, MAX_FILE_BYTES) + "\n\n[... content truncated ...]";
     }
     return { success: true, result: content };
   } catch (err) {
@@ -354,7 +354,7 @@ async function toolReadFile(args) {
 async function toolWriteFile(args) {
   const { file_path, content } = args;
   if (!file_path || content === undefined) {
-    return { success: false, error: "Se requiere file_path y content." };
+    return { success: false, error: "file_path and content are required." };
   }
 
   try {
@@ -362,7 +362,7 @@ async function toolWriteFile(args) {
     const dir = path.dirname(safePath);
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(safePath, content, "utf8");
-    return { success: true, result: `Archivo escrito exitosamente: ${safePath} (${content.length} bytes)` };
+    return { success: true, result: `File written successfully: ${safePath} (${content.length} bytes)` };
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -370,7 +370,7 @@ async function toolWriteFile(args) {
 
 async function toolListDirectory(args) {
   const { dir_path } = args;
-  if (!dir_path) return { success: false, error: "No se especifico la ruta del directorio." };
+  if (!dir_path) return { success: false, error: "No directory path specified." };
 
   try {
     const safePath = resolveSafePath(dir_path);
@@ -406,7 +406,7 @@ async function toolListDirectory(args) {
       })
       .join("\n");
 
-    return { success: true, result: result || "(directorio vacio)" };
+    return { success: true, result: result || "(empty directory)" };
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -425,13 +425,13 @@ const toolExecutors = {
 async function executeTool(name, args) {
   const executor = toolExecutors[name];
   if (!executor) {
-    return { success: false, error: `Herramienta desconocida: ${name}` };
+    return { success: false, error: `Unknown tool: ${name}` };
   }
 
   try {
     return await executor(args);
   } catch (err) {
-    return { success: false, error: `Error ejecutando ${name}: ${err.message}` };
+    return { success: false, error: `Error executing ${name}: ${err.message}` };
   }
 }
 

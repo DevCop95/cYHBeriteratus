@@ -23,9 +23,9 @@ function rateLimiter(req, res) {
 
   record.count++;
   if (record.count > MAX_REQUESTS_PER_WINDOW) {
-    logger.warn("Rate limit excedido", { ip });
+    logger.warn("Rate limit exceeded", { ip });
     res.writeHead(429, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Demasiadas peticiones. Intenta más tarde." }));
+    res.end(JSON.stringify({ error: "Too many requests. Try again later." }));
     return false;
   }
 

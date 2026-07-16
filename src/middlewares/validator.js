@@ -9,7 +9,7 @@ async function parseJsonBody(req, res) {
       body += chunk.toString();
       if (body.length > MAX_PAYLOAD_SIZE) {
         req.destroy(new Error("Payload too large"));
-        logger.warn("Payload size excedido");
+        logger.warn("Payload size exceeded");
         res.writeHead(413, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Payload too large" }));
         reject(new Error("Payload too large"));
@@ -24,9 +24,9 @@ async function parseJsonBody(req, res) {
         const parsed = JSON.parse(body);
         resolve(parsed);
       } catch (err) {
-        logger.warn("Invalid JSON recibido");
+        logger.warn("Invalid JSON received");
         res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "JSON malformado" }));
+        res.end(JSON.stringify({ error: "Malformed JSON" }));
         reject(err);
       }
     });
@@ -39,16 +39,16 @@ async function parseJsonBody(req, res) {
 
 function validateChatRequest(parsed) {
   if (parsed.messages && !Array.isArray(parsed.messages)) {
-    return { valid: false, error: "'messages' debe ser un array" };
+    return { valid: false, error: "'messages' must be an array" };
   }
-  
+
   if (parsed.messages) {
     for (const msg of parsed.messages) {
       if (!msg.role || typeof msg.role !== "string") {
-        return { valid: false, error: "Cada mensaje debe tener un 'role' válido" };
+        return { valid: false, error: "Each message must have a valid 'role'" };
       }
       if (typeof msg.content !== "string") {
-        return { valid: false, error: "Cada mensaje debe tener 'content' de tipo string" };
+        return { valid: false, error: "Each message must have 'content' of type string" };
       }
     }
   }
