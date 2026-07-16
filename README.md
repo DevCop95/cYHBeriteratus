@@ -2,16 +2,18 @@
 
 ![Cover](public/img/wrong.png)
 
-A local, cyberpunk / hacker-style web interface wired to `Ollama` that supports **Autonomous Agents (Tool Calling)**, **abliterated models** (uncensored), smooth real-time streaming, and a secure "Zero-Dependency" architecture (no external npm modules).
+A local, hacker / terminal-style web interface wired to `Ollama` that supports **Autonomous Agents (Tool Calling)**, **abliterated models** (uncensored), smooth real-time streaming, and a secure "Zero-Dependency" architecture (no external npm modules).
 
 ## 🔥 Features
 
-- **Chat UI (Termux-style):** A messaging-app layout with left/right chat bubbles, live Markdown rendering (headings, lists, links, code blocks with copy buttons), a blood-drip welcome screen, typing indicator, toast notifications, and a live clock — all in a black-and-blood-red terminal aesthetic.
+- **Chat UI (Termux-style):** A messaging-app layout with left/right chat bubbles, live Markdown rendering (headings, lists, links, code blocks with copy buttons), a blood-drip welcome screen, typing indicator, toast notifications, and a live clock — all in a black-and-blood-red terminal aesthetic. Keyboard shortcuts: `Ctrl+Enter` to send, `Esc` to cancel a running request.
+- **Chain of Thought:** For reasoning models (Qwen3, etc.) the model's `thinking` stream is captured and shown in a collapsible **CHAIN OF THOUGHT** panel above the answer, instead of the UI appearing to hang.
 - **Agent Engine (Tools):** The model can run real actions on your machine when agent mode is enabled:
   - `web_fetch`: read articles from the internet (60s cache to avoid duplicate requests).
   - `web_search`: search the web via DuckDuckGo (60s cache, redirect handling, link-extraction fallback).
   - `read_file` / `write_file` / `list_directory`: operate on your filesystem (sandboxed).
   - `run_command`: run commands in PowerShell (non-blocking, via `execFile`).
+- **Empty-response fallback:** If the agent loop produces no visible output (e.g. a small or non-tool model that gets confused by the tool prompt), the server automatically answers once in plain chat mode so you always get a reply.
 - **Session persistence:** Conversation history is stored on the server (in memory, 24h TTL). Opening a new tab restores the context automatically from the server without losing any messages.
 - **Agent rounds control:** A numeric input (1–20) in the toolbar controls how many tool rounds the agent may run per response, without editing files.
 - **Security (Sandboxing):**
@@ -77,8 +79,19 @@ ollama pull richardyoung/qwen2.5-3b-instruct-abliterated
 
 ### 4. Start the cYHBer Console server
 
+Run it directly:
+
 ```powershell
 node server.js
+```
+
+Or use the background control script (also wired to the npm scripts below):
+
+```powershell
+python hack.py start     # or: npm start
+python hack.py status    # ONLINE / OFFLINE + PID
+python hack.py stop
+python hack.py restart
 ```
 
 ### 5. Enter the system
@@ -93,7 +106,7 @@ Open your web browser and go to:
 npm test
 ```
 
-Covers: message validation, rate limiter, log levels, SSRF protection (21 IPv4/IPv6 cases), path sandboxing, file operations and command execution. No external dependencies — uses the native `node:test` runner.
+Covers: message validation, rate limiter, log levels, SSRF protection (20 `isPrivateIP` IPv4/IPv6 cases + 6 `web_fetch` guards), path sandboxing, file operations and command execution. No external dependencies — uses the native `node:test` runner.
 
 ---
 
@@ -116,11 +129,14 @@ cYHBeriteratus/
 │  ├─ index.html          # Chat UI (Termux-style)
 │  ├─ styles.css          # Terminal / blood-red styling
 │  ├─ app.js              # Frontend orchestrator (ES modules)
+│  ├─ img/
+│  │  └─ wrong.png        # README cover / UI screenshot
 │  └─ modules/
 │     ├─ session.js       # Session handling: localStorage + server sync
-│     ├─ ui.js            # DOM refs, chat bubbles, tool cards, status
+│     ├─ ui.js            # DOM refs, chat bubbles, tool cards, thinking panel, status
 │     ├─ stream.js        # NDJSON streaming parser with callbacks
 │     └─ markdown.js      # Dependency-free, CSP-safe Markdown renderer
+├─ hack.py                # Background server control: start/stop/status/restart
 ├─ tests/
 │  ├─ validator.test.js
 │  ├─ security.test.js
@@ -137,7 +153,9 @@ cYHBeriteratus/
 At the top of the screen you'll find a **toggle** to enable "AGENT" mode and a **numeric input** to control the max rounds (1–20).
 
 - **OFF:** The model acts as a standard chatbot (normal, fast text responses).
-- **ON:** The model reasons before answering and may decide to use system tools (search the web, run scripts, etc.) to fulfill your request.
+- **ON:** The model reasons before answering and may decide to use system tools (search the web, run scripts, etc.) to fulfill your request. Tool executions appear as inline cards, and reasoning models show their thinking in the CHAIN OF THOUGHT panel.
+
+> **Note:** Tools only work with tool-calling models (see the note in *Download the models*). If a model can't use tools, the agent falls back to a plain answer automatically.
 
 > **Warning:** The model can modify files inside the project. Use it at your own risk!
 
