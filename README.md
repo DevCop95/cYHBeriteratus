@@ -1,6 +1,6 @@
 # cYHBer Console 💀
 
-![Cover](public/img/hack1.png)
+![Cover](public/img/wrong.png)
 
 A local, cyberpunk / hacker-style web interface wired to `Ollama` that supports **Autonomous Agents (Tool Calling)**, **abliterated models** (uncensored), smooth real-time streaming, and a secure "Zero-Dependency" architecture (no external npm modules).
 
