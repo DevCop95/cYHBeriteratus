@@ -1,10 +1,10 @@
 import { getOrCreateSessionId, loadMessages, saveMessages, restoreSession, syncSession, clearSession } from "./modules/session.js";
 import {
-  chatContainer, promptInput, sendButton, clearButton, modelSelect,
-  agentModeToggle, maxRoundsInput, welcomeScreen,
-  formatTime, showToast, hideWelcome, showWelcome,
+  screen, promptInput, promptCursor, chatForm, modelSelect,
+  agentModeToggle, agentVal, maxRoundsInput,
+  showToast, hideBoot, showBoot,
   createMessageNode, updateBubble, updateThinking, appendNode, renderMessages,
-  setBusy, setStatus, updateStats,
+  setBusy, setStatus,
 } from "./modules/ui.js";
 import { processStream } from "./modules/stream.js";
 
@@ -12,13 +12,10 @@ const CHAT_TIMEOUT_MS = 180000;
 
 let messages = [];
 let selectedModel = "";
+let agentEnabled = true;
 let isProcessing = false;
 let abortController = null;
 const sessionId = getOrCreateSessionId();
-
-function countMessages() {
-  return messages.filter((m) => m.role === "user" || m.role === "assistant").length;
-}
 
 async function fetchStatus() {
   try {
@@ -29,7 +26,7 @@ async function fetchStatus() {
       selectedModel
     );
   } catch {
-    setStatus({ ok: false, error: "Local server down. Check Ollama." }, selectedModel);
+    setStatus({ ok: false, error: "local server down. check ollama." }, selectedModel);
   }
 }
 
@@ -37,28 +34,26 @@ async function sendMessage(content) {
   if (isProcessing) return;
   const modelToUse = selectedModel || modelSelect.value;
   if (!modelToUse) {
-    showToast("Select a model first");
+    showToast("select a model first");
     return;
   }
 
   isProcessing = true;
-  hideWelcome();
+  hideBoot();
 
-  const userEntry = { role: "user", content, time: formatTime() };
+  const userEntry = { role: "user", content, time: Date.now() };
   messages.push(userEntry);
   saveMessages(messages);
   appendNode(createMessageNode(userEntry));
-  updateStats({ count: countMessages() });
 
-  // Build the request payload before adding the streaming placeholder.
   const payloadMessages = messages
     .filter((m) => (m.role === "user" || m.role === "assistant") && m.content?.trim())
     .map(({ role, content: c }) => ({ role, content: c }));
 
-  const assistantEntry = { role: "assistant", content: "", time: formatTime() };
+  const assistantEntry = { role: "assistant", content: "", time: Date.now() };
   messages.push(assistantEntry);
   const assistantNode = appendNode(createMessageNode(assistantEntry));
-  const bubble = assistantNode._bubble;
+  const out = assistantNode._bubble;
 
   setBusy(true);
 
@@ -78,14 +73,14 @@ async function sendMessage(content) {
       signal: abortController.signal,
       body: JSON.stringify({
         model: modelToUse,
-        agentMode: agentModeToggle?.checked ?? false,
+        agentMode: agentEnabled,
         maxRounds: parseInt(maxRoundsInput?.value, 10) || 8,
         messages: payloadMessages,
       }),
     });
 
     if (!response.ok || !response.body) {
-      let errorMessage = "DARK LINK CONNECTION FAILED.";
+      let errorMessage = "connection failed.";
       try { const d = await response.json(); errorMessage = d.error || errorMessage; } catch {}
       throw new Error(errorMessage);
     }
@@ -94,7 +89,7 @@ async function sendMessage(content) {
       onToken(token) {
         fullContent += token;
         assistantEntry.content = fullContent;
-        updateBubble(bubble, fullContent);
+        updateBubble(out, fullContent);
       },
       onThinking(chunk) {
         fullThinking += chunk;
@@ -102,18 +97,18 @@ async function sendMessage(content) {
       },
       onToolCall(event) {
         toolUsed = true;
-        lastToolEntry = { role: "tool_call", name: `${event.name}(${JSON.stringify(event.arguments)})`, time: formatTime() };
-        messages.splice(messages.length - 1, 0, lastToolEntry); // keep before assistant entry
+        lastToolEntry = { role: "tool_call", name: `${event.name} ${JSON.stringify(event.arguments)}`, time: Date.now() };
+        messages.splice(messages.length - 1, 0, lastToolEntry);
         lastToolNode = createMessageNode(lastToolEntry);
-        chatContainer.insertBefore(lastToolNode, assistantNode);
-        chatContainer.scrollTop = chatContainer.scrollHeight;
+        screen.insertBefore(lastToolNode, assistantNode);
+        screen.scrollTop = screen.scrollHeight;
       },
       onToolResult(event) {
         if (lastToolNode) {
-          lastToolNode._status.className = `tool-status ${event.success ? "success" : "error"}`;
-          lastToolNode._status.textContent = event.success ? "Done" : "Error";
-          lastToolNode._result.textContent = event.content;
-          lastToolNode._result.style.display = "";
+          lastToolNode._state.className = `tool-state ${event.success ? "success" : "error"}`;
+          lastToolNode._state.textContent = event.success ? "ok" : "error";
+          lastToolNode._out.textContent = event.content;
+          lastToolNode._out.style.display = "";
         }
         if (lastToolEntry) {
           lastToolEntry.role = "tool_result";
@@ -124,17 +119,16 @@ async function sendMessage(content) {
     });
 
     if (!fullContent.trim() && !toolUsed && !fullThinking.trim()) {
-      assistantEntry.content = "[ERROR] The model did not respond. Possible interference.";
-      updateBubble(bubble, assistantEntry.content);
+      assistantEntry.content = "-bash: no response from model (possible interference)";
+      out.className = "line-err";
+      out.textContent = assistantEntry.content;
     } else if (!fullContent.trim() && toolUsed) {
-      // Only tools ran, no final text — drop the empty assistant bubble.
       assistantNode.remove();
       const idx = messages.indexOf(assistantEntry);
       if (idx !== -1) messages.splice(idx, 1);
     } else if (!fullContent.trim() && fullThinking.trim()) {
-      // Reasoning only, no final answer — show a hint instead of a blank bubble.
-      assistantEntry.content = "_(model produced reasoning only — see CHAIN OF THOUGHT above)_";
-      updateBubble(bubble, assistantEntry.content);
+      assistantEntry.content = "(reasoning only — expand chain of thought above)";
+      updateBubble(out, `_${assistantEntry.content}_`);
     }
 
     saveMessages(messages);
@@ -145,18 +139,19 @@ async function sendMessage(content) {
     assistantNode.remove();
 
     const msg = error.name === "AbortError"
-      ? "Link cut. Timed out. Retry or shorten the message."
+      ? "^C  interrupted (timeout). retry or shorten the message."
       : error.message;
-    const failEntry = { role: "assistant", content: `☢ FAILURE: ${msg}`, time: formatTime() };
+    const failEntry = { role: "assistant", content: `-bash: ${msg}`, time: Date.now() };
     messages.push(failEntry);
     saveMessages(messages);
-    appendNode(createMessageNode(failEntry));
+    const errNode = createMessageNode(failEntry);
+    errNode.querySelector(".out").className = "line-err";
+    appendNode(errNode);
   } finally {
     clearTimeout(timeoutId);
     setBusy(false);
     isProcessing = false;
     abortController = null;
-    updateStats({ count: countMessages() });
     promptInput.focus();
   }
 }
@@ -165,34 +160,17 @@ async function sendMessage(content) {
 function autoGrow() {
   promptInput.style.height = "auto";
   promptInput.style.height = `${Math.min(promptInput.scrollHeight, 160)}px`;
-}
-
-// ── Live clock ──
-function updateClock() {
-  const now = new Date();
-  const formatted = now.toLocaleString("en-US", {
-    weekday: "short", year: "numeric", month: "short", day: "numeric",
-    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
-  });
-  const live = document.getElementById("liveClock");
-  const welcome = document.getElementById("welcomeClock");
-  if (live) live.textContent = formatted;
-  if (welcome) welcome.textContent = formatted;
+  if (promptCursor) promptCursor.classList.toggle("hidden", promptInput.value.length > 0);
 }
 
 async function init() {
-  updateStats({ sessionId });
   const stored = loadMessages();
   const serverMessages = await restoreSession(sessionId);
   messages = serverMessages ?? stored;
   renderMessages(messages);
-  updateStats({ count: countMessages() });
 
   await fetchStatus();
   setInterval(fetchStatus, 20000);
-
-  updateClock();
-  setInterval(updateClock, 1000);
   promptInput.focus();
 }
 
@@ -200,7 +178,8 @@ async function init() {
 promptInput.addEventListener("input", autoGrow);
 
 promptInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+  // Enter sends; Shift+Enter inserts a newline.
+  if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
     const content = promptInput.value.trim();
     if (!content) return;
@@ -210,37 +189,45 @@ promptInput.addEventListener("keydown", (e) => {
   }
   if (e.key === "Escape" && isProcessing && abortController) {
     abortController.abort();
-    showToast("Request cancelled");
+    showToast("^C interrupted");
   }
 });
 
-sendButton.addEventListener("click", () => {
-  const content = promptInput.value.trim();
-  if (!content) return;
-  promptInput.value = "";
-  autoGrow();
-  sendMessage(content);
-});
+chatForm.addEventListener("submit", (e) => e.preventDefault());
 
-clearButton.addEventListener("click", () => {
-  clearSession(sessionId);
-  messages = [];
-  saveMessages(messages);
-  renderMessages(messages);
-  updateStats({ count: 0 });
-  showToast("Session purged");
+agentModeToggle.addEventListener("click", () => {
+  agentEnabled = !agentEnabled;
+  agentModeToggle.setAttribute("aria-pressed", String(agentEnabled));
+  agentVal.textContent = agentEnabled ? "on" : "off";
 });
 
 modelSelect.addEventListener("change", () => {
   selectedModel = modelSelect.value;
-  updateStats({ model: selectedModel });
 });
 
-welcomeScreen?.addEventListener("click", (e) => {
-  const btn = e.target.closest(".example-btn");
-  if (!btn) return;
-  const text = btn.dataset.example;
+// Boot hint buttons
+document.addEventListener("click", (e) => {
+  const hint = e.target.closest(".hint");
+  if (!hint) return;
+  const text = hint.dataset.example;
   if (text) sendMessage(text);
+});
+
+// Clicking anywhere on the terminal focuses the prompt (unless selecting text).
+document.querySelector(".terminal").addEventListener("mouseup", () => {
+  if (!window.getSelection().toString()) promptInput.focus();
+});
+
+// Ctrl+L clears the screen (like a real shell).
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey && e.key.toLowerCase() === "l") {
+    e.preventDefault();
+    clearSession(sessionId);
+    messages = [];
+    saveMessages(messages);
+    renderMessages(messages);
+    showToast("cleared");
+  }
 });
 
 init();

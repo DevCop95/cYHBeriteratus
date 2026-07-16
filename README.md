@@ -6,8 +6,8 @@ A local, hacker / terminal-style web interface wired to `Ollama` that supports *
 
 ## 🔥 Features
 
-- **Chat UI (Termux-style):** A messaging-app layout with left/right chat bubbles, live Markdown rendering (headings, lists, links, code blocks with copy buttons), a blood-drip welcome screen, typing indicator, toast notifications, and a live clock — all in a black-and-blood-red terminal aesthetic. Keyboard shortcuts: `Ctrl+Enter` to send, `Esc` to cancel a running request.
-- **Chain of Thought:** For reasoning models (Qwen3, etc.) the model's `thinking` stream is captured and shown in a collapsible **CHAIN OF THOUGHT** panel above the answer, instead of the UI appearing to hang.
+- **Terminal UI (Termux-style):** A real shell-session look — a window with a title bar, a scrolling transcript where your messages appear as `wrong@gpt:~$` prompt lines, tool executions render as `[tool] name ······· ok` lines with their output, a tmux-style status line (model / agent / rounds / online), a blinking cursor, and live Markdown rendering (code blocks with copy buttons). Monospace, green-on-black, with CRT scanlines. Keyboard: `Enter` sends, `Shift+Enter` newline, `Esc` cancels, `Ctrl+L` clears.
+- **Chain of Thought:** For reasoning models (Qwen3, etc.) the model's `thinking` stream is captured and shown in a collapsible **`[+] chain of thought`** block above the answer, instead of the UI appearing to hang.
 - **Agent Engine (Tools):** The model can run real actions on your machine when agent mode is enabled:
   - `web_fetch`: read articles from the internet (60s cache to avoid duplicate requests).
   - `web_search`: search the web via DuckDuckGo (60s cache, redirect handling, link-extraction fallback).
@@ -126,14 +126,14 @@ cYHBeriteratus/
 │     ├─ security.js      # Rate-limiting (with auto-cleanup) and CSP headers
 │     └─ validator.js     # role/content validation on messages
 ├─ public/
-│  ├─ index.html          # Chat UI (Termux-style)
-│  ├─ styles.css          # Terminal / blood-red styling
+│  ├─ index.html          # Terminal UI (title bar, transcript, status line, prompt)
+│  ├─ styles.css          # Terminal styling (green-on-black, scanlines)
 │  ├─ app.js              # Frontend orchestrator (ES modules)
 │  ├─ img/
 │  │  └─ wrong.png        # README cover / UI screenshot
 │  └─ modules/
 │     ├─ session.js       # Session handling: localStorage + server sync
-│     ├─ ui.js            # DOM refs, chat bubbles, tool cards, thinking panel, status
+│     ├─ ui.js            # DOM refs, terminal transcript lines, tools, thinking, status
 │     ├─ stream.js        # NDJSON streaming parser with callbacks
 │     └─ markdown.js      # Dependency-free, CSP-safe Markdown renderer
 ├─ hack.py                # Background server control: start/stop/status/restart
@@ -150,10 +150,10 @@ cYHBeriteratus/
 ```
 
 ## 🔒 Agent Mode (Tool Calling)
-At the top of the screen you'll find a **toggle** to enable "AGENT" mode and a **numeric input** to control the max rounds (1–20).
+On the status line you'll find a clickable **`agent:on/off`** toggle and a **`rounds`** input (1–20).
 
-- **OFF:** The model acts as a standard chatbot (normal, fast text responses).
-- **ON:** The model reasons before answering and may decide to use system tools (search the web, run scripts, etc.) to fulfill your request. Tool executions appear as inline cards, and reasoning models show their thinking in the CHAIN OF THOUGHT panel.
+- **off:** The model acts as a standard chatbot (normal, fast text responses).
+- **on:** The model reasons before answering and may decide to use system tools (search the web, run scripts, etc.) to fulfill your request. Tool executions appear as inline `[tool]` lines, and reasoning models show their thinking in the collapsible `[+] chain of thought` block.
 
 > **Note:** Tools only work with tool-calling models (see the note in *Download the models*). If a model can't use tools, the agent falls back to a plain answer automatically.
 
