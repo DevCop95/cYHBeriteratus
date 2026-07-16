@@ -55,21 +55,23 @@ copy .env.example .env
 Abre tu terminal (PowerShell o CMD) y descarga los modelos recomendados. El sistema detectará automáticamente los que tengas instalados.
 
 ```powershell
-# Opción 1: NeuralDaredevil 8B — mejor 8B en Open LLM Leaderboard (~6 GB VRAM)
-ollama pull NeuralDaredevil-8B-abliterated
+# Opción 1: Qwen3 8B abliterated — razonamiento + tool calling, el más completo (~6 GB VRAM)
+ollama pull huihui_ai/qwen3-abliterated:8b
 
-# Opción 2: Josiefied-Qwen3 8B — razonamiento superior, muy eficiente (~6 GB VRAM)
-ollama pull mradermacher/Josiefied-Qwen3-8B-abliterated
+# Opción 2: Josiefied-Qwen3 8B — uncensored sin perder tool calling (~6 GB VRAM)
+ollama pull goekdenizguelmez/JOSIEFIED-Qwen3:8b
 
-# Opción 3: Abliterated 5B MoE — ideal para PCs estándar, rápido
-ollama pull huihui_ai/huihui-moe-abliterated:5b
+# Opción 3: Granite 4.1 3B abliterated — moderno, con tools, ideal para PCs estándar
+ollama pull huihui_ai/granite4.1-abliterated:3b
 
-# Opción 4: Abliterated 7B — buena GPU requerida
-ollama pull huihui_ai/qwen2.5-abliterate:7b-instruct
+# Opción 4: NeuralDaredevil 8B — mejor 8B clásico en Open LLM Leaderboard (solo chat, sin tools)
+ollama pull closex/neuraldaredevil-8b-abliterated
 
-# Opción 5: Abliterated 3B — para PCs de muy bajos recursos
+# Opción 5: Abliterated 3B — para PCs de muy bajos recursos (modelo por defecto)
 ollama pull richardyoung/qwen2.5-3b-instruct-abliterated
 ```
+
+> **Importante para el Modo Agente:** las herramientas (tools) solo funcionan con modelos que soporten *tool calling* (familias Qwen2.5/Qwen3, Granite, Gemma con tag `tools`). Los modelos basados en Llama 3 clásico como NeuralDaredevil sirven solo para el modo chat.
 
 *(Nota: Asegúrate de que Ollama esté corriendo en segundo plano, por defecto en el puerto `11434`)*
 
