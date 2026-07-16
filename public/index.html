@@ -3,50 +3,109 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>wrong@gpt: ~</title>
+    <title>Wrong GPT</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💀</text></svg>" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="terminal">
-      <!-- Window chrome -->
-      <div class="titlebar">
-        <span class="titlebar__name"><span class="tb-user">wrong@gpt</span><span class="tb-dim">:</span><span class="tb-path"> ~</span></span>
-        <span class="titlebar__title">cYHBer console — WRONG GPT</span>
-        <span class="titlebar__btns"><span class="tb-btn">_</span><span class="tb-btn">▢</span><span class="tb-btn tb-btn--close">✕</span></span>
-      </div>
+    <div class="app">
+      <!-- Sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <button class="new-chat" id="newChat" type="button">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          New chat
+        </button>
 
-      <!-- Transcript -->
-      <div class="screen" id="screen">
-        <div class="boot" id="boot">
-          <pre class="boot__banner">  cYHBer console v1.0  ::  WRONG GPT  ::  local ollama agent</pre>
-          <div class="boot__line">Type a message and press <b>Enter</b> to run it. <b>Shift+Enter</b> = newline · <b>Esc</b> = cancel.</div>
-          <div class="boot__line boot__dim">tools: web_fetch · web_search · run_command · read_file · write_file · list_directory</div>
-          <div class="boot__hints">
-            <span class="boot__dim">try:</span>
-            <button class="hint" type="button" data-example="List the files in the current directory">list files</button>
-            <button class="hint" type="button" data-example="Summarize the latest news about local LLMs">read the web</button>
-            <button class="hint" type="button" data-example="What is my operating system and Node version?">system info</button>
-            <button class="hint" type="button" data-example="Search the web for abliterated Ollama models">web search</button>
+        <div class="history">
+          <div class="history__label">Recent</div>
+          <div class="history__item active" id="currentChat">
+            <svg viewBox="0 0 24 24" width="15" height="15"><path fill="currentColor" d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+            <span>Current session</span>
           </div>
         </div>
-      </div>
 
-      <!-- Status line (tmux-style) -->
-      <div class="statusline">
-        <span class="status-seg status-seg--brand">[wrong]</span>
-        <span class="status-seg">model:<select id="modelSelect" class="status-select" disabled><option value="">…</option></select></span>
-        <button class="status-seg status-toggle" id="agentModeToggle" type="button" aria-pressed="true">agent:<span class="status-val" id="agentVal">on</span></button>
-        <span class="status-seg">rounds:<input id="maxRoundsInput" class="status-rounds" type="number" min="1" max="20" value="8" /></span>
-        <span class="status-seg status-seg--right"><span class="status-dot offline" id="statusDot"></span><span id="statusText">offline</span></span>
-      </div>
+        <div class="sidebar__footer">
+          <div class="brand-badge">
+            <span class="brand-badge__logo">☠</span>
+            <div>
+              <div class="brand-badge__name">Wrong GPT</div>
+              <div class="brand-badge__tag">RED TEAM EDITION</div>
+            </div>
+          </div>
+        </div>
+      </aside>
 
-      <!-- Prompt input -->
-      <form class="prompt-bar" id="chatForm">
-        <span class="prompt-label"><span class="p-user">wrong@gpt</span><span class="p-dim">:~$</span></span>
-        <textarea id="promptInput" class="prompt-input" rows="1" autocomplete="off" spellcheck="false" placeholder="type a command…"></textarea>
-        <span class="prompt-cursor" id="promptCursor">█</span>
-      </form>
+      <!-- Main -->
+      <main class="main">
+        <header class="topbar">
+          <button class="icon-btn sidebar-toggle" id="sidebarToggle" type="button" title="Toggle sidebar">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+          </button>
+
+          <div class="model-pill">
+            <span class="model-pill__name">Wrong GPT</span>
+            <select id="modelSelect" class="model-pill__select" disabled>
+              <option value="">…</option>
+            </select>
+          </div>
+
+          <div class="topbar__right">
+            <button class="agent-chip" id="agentToggle" type="button" aria-pressed="true" title="Agent mode (tools)">
+              <span class="agent-chip__dot"></span>Agent <span id="agentVal">on</span>
+            </button>
+            <label class="rounds" title="Max tool rounds per response">
+              <span>rounds</span>
+              <input id="roundsInput" type="number" min="1" max="20" value="8" />
+            </label>
+            <span class="status" title="Ollama status"><span class="status__dot offline" id="statusDot"></span><span id="statusText">offline</span></span>
+          </div>
+        </header>
+
+        <div class="chat" id="chat">
+          <!-- Empty state -->
+          <section class="welcome" id="welcome">
+            <div class="welcome__logo">☠</div>
+            <h1 class="welcome__title">Wrong GPT</h1>
+            <p class="welcome__sub">Uncensored local assistant · red-team edition</p>
+            <div class="welcome__cards">
+              <button class="card" type="button" data-example="List the files in the current directory">
+                <span class="card__title">List files</span>
+                <span class="card__desc">inspect the project directory</span>
+              </button>
+              <button class="card" type="button" data-example="Summarize the latest news about local LLMs">
+                <span class="card__title">Read the web</span>
+                <span class="card__desc">fetch and summarize an article</span>
+              </button>
+              <button class="card" type="button" data-example="What is my operating system and Node version?">
+                <span class="card__title">System info</span>
+                <span class="card__desc">run a command on this machine</span>
+              </button>
+              <button class="card" type="button" data-example="Search the web for abliterated Ollama models">
+                <span class="card__title">Web search</span>
+                <span class="card__desc">query DuckDuckGo for results</span>
+              </button>
+            </div>
+          </section>
+
+          <div class="messages" id="messages"></div>
+        </div>
+
+        <div class="composer">
+          <form class="composer__box" id="chatForm">
+            <textarea
+              id="promptInput"
+              class="composer__input"
+              rows="1"
+              placeholder="Message Wrong GPT…"
+              autocomplete="off"
+            ></textarea>
+            <button id="sendBtn" class="composer__send" type="submit" title="Send" disabled>
+              <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 4l-8 8h5v8h6v-8h5z"/></svg>
+            </button>
+          </form>
+          <div class="composer__note">Wrong GPT is uncensored and can be wrong. For authorized red-team use only.</div>
+        </div>
+      </main>
     </div>
 
     <div class="toast" id="toast"></div>

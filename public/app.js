@@ -1,10 +1,10 @@
 import { getOrCreateSessionId, loadMessages, saveMessages, restoreSession, syncSession, clearSession } from "./modules/session.js";
 import {
-  screen, promptInput, promptCursor, chatForm, modelSelect,
-  agentModeToggle, agentVal, maxRoundsInput,
-  showToast, hideBoot, showBoot,
+  chat, messagesEl, promptInput, sendBtn, chatForm, modelSelect,
+  agentToggle, agentVal, roundsInput, newChatBtn,
+  showToast, hideWelcome,
   createMessageNode, updateBubble, updateThinking, appendNode, renderMessages,
-  setBusy, setStatus,
+  setBusy, updateSendState, setStatus,
 } from "./modules/ui.js";
 import { processStream } from "./modules/stream.js";
 
@@ -26,7 +26,7 @@ async function fetchStatus() {
       selectedModel
     );
   } catch {
-    setStatus({ ok: false, error: "local server down. check ollama." }, selectedModel);
+    setStatus({ ok: false, error: "Local server down. Check Ollama." }, selectedModel);
   }
 }
 
@@ -34,12 +34,12 @@ async function sendMessage(content) {
   if (isProcessing) return;
   const modelToUse = selectedModel || modelSelect.value;
   if (!modelToUse) {
-    showToast("select a model first");
+    showToast("Select a model first");
     return;
   }
 
   isProcessing = true;
-  hideBoot();
+  hideWelcome();
 
   const userEntry = { role: "user", content, time: Date.now() };
   messages.push(userEntry);
@@ -53,7 +53,7 @@ async function sendMessage(content) {
   const assistantEntry = { role: "assistant", content: "", time: Date.now() };
   messages.push(assistantEntry);
   const assistantNode = appendNode(createMessageNode(assistantEntry));
-  const out = assistantNode._bubble;
+  const contentEl = assistantNode._content;
 
   setBusy(true);
 
@@ -74,13 +74,13 @@ async function sendMessage(content) {
       body: JSON.stringify({
         model: modelToUse,
         agentMode: agentEnabled,
-        maxRounds: parseInt(maxRoundsInput?.value, 10) || 8,
+        maxRounds: parseInt(roundsInput?.value, 10) || 8,
         messages: payloadMessages,
       }),
     });
 
     if (!response.ok || !response.body) {
-      let errorMessage = "connection failed.";
+      let errorMessage = "Connection failed.";
       try { const d = await response.json(); errorMessage = d.error || errorMessage; } catch {}
       throw new Error(errorMessage);
     }
@@ -89,7 +89,7 @@ async function sendMessage(content) {
       onToken(token) {
         fullContent += token;
         assistantEntry.content = fullContent;
-        updateBubble(out, fullContent);
+        updateBubble(contentEl, fullContent);
       },
       onThinking(chunk) {
         fullThinking += chunk;
@@ -100,13 +100,13 @@ async function sendMessage(content) {
         lastToolEntry = { role: "tool_call", name: `${event.name} ${JSON.stringify(event.arguments)}`, time: Date.now() };
         messages.splice(messages.length - 1, 0, lastToolEntry);
         lastToolNode = createMessageNode(lastToolEntry);
-        screen.insertBefore(lastToolNode, assistantNode);
-        screen.scrollTop = screen.scrollHeight;
+        messagesEl.insertBefore(lastToolNode, assistantNode);
+        chat.scrollTop = chat.scrollHeight;
       },
       onToolResult(event) {
         if (lastToolNode) {
-          lastToolNode._state.className = `tool-state ${event.success ? "success" : "error"}`;
-          lastToolNode._state.textContent = event.success ? "ok" : "error";
+          lastToolNode._state.className = `tool__state ${event.success ? "success" : "error"}`;
+          lastToolNode._state.textContent = event.success ? "done" : "error";
           lastToolNode._out.textContent = event.content;
           lastToolNode._out.style.display = "";
         }
@@ -119,16 +119,15 @@ async function sendMessage(content) {
     });
 
     if (!fullContent.trim() && !toolUsed && !fullThinking.trim()) {
-      assistantEntry.content = "-bash: no response from model (possible interference)";
-      out.className = "line-err";
-      out.textContent = assistantEntry.content;
+      assistantEntry.content = "No response from the model. Try again or pick another model.";
+      contentEl.innerHTML = `<span class="err">${assistantEntry.content}</span>`;
     } else if (!fullContent.trim() && toolUsed) {
       assistantNode.remove();
       const idx = messages.indexOf(assistantEntry);
       if (idx !== -1) messages.splice(idx, 1);
     } else if (!fullContent.trim() && fullThinking.trim()) {
-      assistantEntry.content = "(reasoning only — expand chain of thought above)";
-      updateBubble(out, `_${assistantEntry.content}_`);
+      assistantEntry.content = "*(reasoning only — expand “Show reasoning” above)*";
+      updateBubble(contentEl, assistantEntry.content);
     }
 
     saveMessages(messages);
@@ -139,14 +138,14 @@ async function sendMessage(content) {
     assistantNode.remove();
 
     const msg = error.name === "AbortError"
-      ? "^C  interrupted (timeout). retry or shorten the message."
+      ? "Stopped. Timed out — retry or shorten the message."
       : error.message;
-    const failEntry = { role: "assistant", content: `-bash: ${msg}`, time: Date.now() };
+    const failEntry = { role: "assistant", content: `⚠ ${msg}`, time: Date.now() };
     messages.push(failEntry);
     saveMessages(messages);
-    const errNode = createMessageNode(failEntry);
-    errNode.querySelector(".out").className = "line-err";
-    appendNode(errNode);
+    const node = createMessageNode(failEntry);
+    node._content.innerHTML = `<span class="err">${node._content.textContent}</span>`;
+    appendNode(node);
   } finally {
     clearTimeout(timeoutId);
     setBusy(false);
@@ -156,11 +155,27 @@ async function sendMessage(content) {
   }
 }
 
-// ── Textarea auto-grow ──
+function submit() {
+  const content = promptInput.value.trim();
+  if (!content || isProcessing) return;
+  promptInput.value = "";
+  autoGrow();
+  updateSendState();
+  sendMessage(content);
+}
+
 function autoGrow() {
   promptInput.style.height = "auto";
-  promptInput.style.height = `${Math.min(promptInput.scrollHeight, 160)}px`;
-  if (promptCursor) promptCursor.classList.toggle("hidden", promptInput.value.length > 0);
+  promptInput.style.height = `${Math.min(promptInput.scrollHeight, 200)}px`;
+}
+
+function newChat() {
+  if (isProcessing && abortController) abortController.abort();
+  clearSession(sessionId);
+  messages = [];
+  saveMessages(messages);
+  renderMessages(messages);
+  promptInput.focus();
 }
 
 async function init() {
@@ -168,66 +183,46 @@ async function init() {
   const serverMessages = await restoreSession(sessionId);
   messages = serverMessages ?? stored;
   renderMessages(messages);
-
   await fetchStatus();
   setInterval(fetchStatus, 20000);
+  updateSendState();
   promptInput.focus();
 }
 
-// ── Event wiring ──
-promptInput.addEventListener("input", autoGrow);
+// ── Events ──
+chatForm.addEventListener("submit", (e) => { e.preventDefault(); submit(); });
+
+promptInput.addEventListener("input", () => { autoGrow(); updateSendState(); });
 
 promptInput.addEventListener("keydown", (e) => {
-  // Enter sends; Shift+Enter inserts a newline.
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
-    const content = promptInput.value.trim();
-    if (!content) return;
-    promptInput.value = "";
-    autoGrow();
-    sendMessage(content);
+    submit();
   }
   if (e.key === "Escape" && isProcessing && abortController) {
     abortController.abort();
-    showToast("^C interrupted");
+    showToast("Stopped");
   }
 });
 
-chatForm.addEventListener("submit", (e) => e.preventDefault());
-
-agentModeToggle.addEventListener("click", () => {
+agentToggle.addEventListener("click", () => {
   agentEnabled = !agentEnabled;
-  agentModeToggle.setAttribute("aria-pressed", String(agentEnabled));
+  agentToggle.setAttribute("aria-pressed", String(agentEnabled));
   agentVal.textContent = agentEnabled ? "on" : "off";
 });
 
-modelSelect.addEventListener("change", () => {
-  selectedModel = modelSelect.value;
+modelSelect.addEventListener("change", () => { selectedModel = modelSelect.value; });
+
+newChatBtn.addEventListener("click", newChat);
+
+document.getElementById("sidebarToggle")?.addEventListener("click", () => {
+  document.querySelector(".app").classList.toggle("sidebar-collapsed");
 });
 
-// Boot hint buttons
+// Welcome suggestion cards
 document.addEventListener("click", (e) => {
-  const hint = e.target.closest(".hint");
-  if (!hint) return;
-  const text = hint.dataset.example;
-  if (text) sendMessage(text);
-});
-
-// Clicking anywhere on the terminal focuses the prompt (unless selecting text).
-document.querySelector(".terminal").addEventListener("mouseup", () => {
-  if (!window.getSelection().toString()) promptInput.focus();
-});
-
-// Ctrl+L clears the screen (like a real shell).
-document.addEventListener("keydown", (e) => {
-  if (e.ctrlKey && e.key.toLowerCase() === "l") {
-    e.preventDefault();
-    clearSession(sessionId);
-    messages = [];
-    saveMessages(messages);
-    renderMessages(messages);
-    showToast("cleared");
-  }
+  const card = e.target.closest(".card");
+  if (card?.dataset.example) sendMessage(card.dataset.example);
 });
 
 init();
