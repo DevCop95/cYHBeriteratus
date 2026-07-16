@@ -15,7 +15,7 @@ A local, ChatGPT-style web interface wired to `Ollama` that supports **Autonomou
   - `run_command`: run commands in PowerShell (non-blocking, via `execFile`).
 - **Empty-response fallback:** If the agent loop produces no visible output (e.g. a small or non-tool model that gets confused by the tool prompt), the server automatically answers once in plain chat mode so you always get a reply.
 - **Session persistence:** Conversation history is stored on the server (in memory, 24h TTL). Opening a new tab restores the context automatically from the server without losing any messages.
-- **Agent rounds control:** A numeric input (1–20) in the toolbar controls how many tool rounds the agent may run per response, without editing files.
+- **Agent rounds control:** A numeric input (1–20) in the top bar controls how many tool rounds the agent may run per response, without editing files.
 - **Security (Sandboxing):**
   - Directory-traversal prevention (the model cannot escape the project directory).
   - SSRF blocking for IPv4 and IPv6 (the model cannot scan your local network via `web_fetch`).
