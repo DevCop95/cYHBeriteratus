@@ -2,6 +2,11 @@
 
 ![Cover](public/img/wrong.png)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-red.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Dependencies: 0](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](package.json)
+[![Tests](https://img.shields.io/badge/tests-69%20passing-brightgreen.svg)](tests/)
+
 A local, ChatGPT-style web interface wired to `Ollama` that supports **Autonomous Agents (Tool Calling)**, **abliterated models** (uncensored), smooth real-time streaming, and a secure "Zero-Dependency" architecture (no external npm modules).
 
 ## 🔥 Features
@@ -222,3 +227,15 @@ python detect-abliterated.py
 ```
 
 Queries Ollama's REST API (`/api/tags`) and lists all installed abliterated models with their real size in GB/MB.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome — bug reports, new tools, and UI improvements. The project has a **Zero-Dependency** architecture, so there's nothing to `npm install`. See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow and guidelines on adding new tools.
+
+## 📄 License
+
+Released under the **MIT License** — see [LICENSE](LICENSE) for the full text.
+
+Copyright © 2026 DevCop95. Provided "as is", without warranty of any kind. **For authorized red-team, research and educational use only** — you are responsible for how you use it.
