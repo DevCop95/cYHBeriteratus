@@ -75,7 +75,7 @@ ollama pull richardyoung/qwen2.5-3b-instruct-abliterated
 
 > **Important for Agent Mode:** tools only work with models that support *tool calling* (Qwen2.5/Qwen3, Granite, Gemma families with a `tools` tag). Classic Llama 3–based models like NeuralDaredevil work in chat mode only.
 
-*(Note: make sure Ollama is running in the background, by default on port `11434`.)*
+*(Note: make sure Ollama is running in the background, by default on port `11434`. If the UI shows **"offline"**, see [Troubleshooting](#-troubleshooting).)*
 
 ### 4. Start the cYHBer Console server
 
@@ -97,6 +97,42 @@ python hack.py restart
 ### 5. Enter the system
 Open your web browser and go to:
 👉 **[http://127.0.0.1:4000](http://127.0.0.1:4000)**
+
+---
+
+## 🚑 Troubleshooting
+
+### The UI loads but the status shows **"offline"** / the chat doesn't reply
+
+This almost always means the **web server is up but Ollama is not running**. The two are separate processes:
+
+- **cYHBer Console** (this app) → serves the UI on port `4000`.
+- **Ollama** → serves the model on port `11434`. The app talks to it as a backend.
+
+If Ollama isn't listening, the server logs repeated errors like:
+
+```text
+[ERROR] Error getting Ollama status {"error":"connect ECONNREFUSED 127.0.0.1:11434"}
+```
+
+**Fix — start Ollama, then refresh the page.**
+
+On Windows, opening the **Ollama** app from the Start menu launches it as a background service (it stays in the system tray). To start it manually from a terminal instead:
+
+```powershell
+# Default install location
+& "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe" serve
+```
+
+Verify it's up (should return HTTP `200`):
+
+```powershell
+curl http://127.0.0.1:11434/api/tags
+```
+
+Once Ollama responds, refresh **http://127.0.0.1:4000** and the status flips to **online**.
+
+> **Tip:** `python hack.py status` only reports the *web server* (ONLINE/OFFLINE). It does **not** check Ollama — a green `ONLINE` there can still coexist with an "offline" model status in the UI if Ollama isn't running.
 
 ---
 

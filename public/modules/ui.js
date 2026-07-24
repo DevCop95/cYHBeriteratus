@@ -15,6 +15,7 @@ export const newChatBtn = document.getElementById("newChat");
 export const statusDot = document.getElementById("statusDot");
 export const statusText = document.getElementById("statusText");
 export const toastEl = document.getElementById("toast");
+export const scrollBottomBtn = document.getElementById("scrollBottom");
 
 const SKULL = "☠";
 
@@ -38,11 +39,75 @@ function attachCopyHandlers(node) {
       const pre = btn.closest(".code-header")?.nextElementSibling;
       const code = pre?.querySelector("code")?.textContent ?? "";
       navigator.clipboard?.writeText(code).then(() => {
-        btn.textContent = "Copied";
-        setTimeout(() => { btn.textContent = "Copy"; }, 1400);
+        btn.textContent = "Copied ✓";
+        btn.classList.add("copied");
+        setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove("copied"); }, 1400);
       });
     });
   });
+  node.querySelectorAll("[data-wrap]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const pre = btn.closest(".code-header")?.nextElementSibling;
+      if (!pre) return;
+      const on = pre.classList.toggle("wrap");
+      btn.classList.toggle("active", on);
+    });
+  });
+}
+
+// Render tool output as text with clickable URLs. Escapes HTML first (XSS-safe),
+// then wraps http(s) links in anchors — the only injected markup.
+const ESC_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+export function setToolOutput(el, text) {
+  const escaped = String(text ?? "").replace(/[&<>"']/g, (c) => ESC_MAP[c]);
+  el.innerHTML = escaped.replace(
+    /(https?:\/\/[^\s<>"')]+)/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+  );
+}
+
+// ── Per-message hover actions (Copy / Regenerate / Edit) ──
+const ICONS = {
+  copy: '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.58z"/></svg>',
+  retry: '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M17.65 6.35A8 8 0 1019.73 14h-2.08A6 6 0 116 12a6 6 0 016-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>',
+};
+
+function actionBtn(label, title, svg) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "msg-action";
+  b.title = title;
+  b.innerHTML = `${svg}<span>${label}</span>`;
+  return b;
+}
+
+function buildActions(entry) {
+  const bar = document.createElement("div");
+  bar.className = "msg__actions";
+
+  const copy = actionBtn("Copy", "Copy message", ICONS.copy);
+  copy.addEventListener("click", () => {
+    navigator.clipboard?.writeText(entry.content || "").then(() => {
+      const span = copy.querySelector("span");
+      const prev = span.textContent;
+      span.textContent = "Copied";
+      copy.classList.add("done");
+      setTimeout(() => { span.textContent = prev; copy.classList.remove("done"); }, 1300);
+    });
+  });
+  bar.append(copy);
+
+  if (entry.role === "user") {
+    const edit = actionBtn("Edit", "Edit & resend", ICONS.edit);
+    edit.addEventListener("click", () => document.dispatchEvent(new CustomEvent("wg:edit", { detail: entry })));
+    bar.append(edit);
+  } else {
+    const retry = actionBtn("Retry", "Regenerate response", ICONS.retry);
+    retry.addEventListener("click", () => document.dispatchEvent(new CustomEvent("wg:regenerate", { detail: entry })));
+    bar.append(retry);
+  }
+  return bar;
 }
 
 export function createMessageNode(entry) {
@@ -64,8 +129,9 @@ function createUserNode(entry) {
   const content = document.createElement("div");
   content.className = "msg__content";
   content.textContent = entry.content;
-  body.append(content);
+  body.append(content, buildActions(entry));
   msg.append(avatar, body);
+  msg._entry = entry;
   return msg;
 }
 
@@ -104,11 +170,14 @@ function createAssistantNode(entry) {
   content.innerHTML = entry.content ? renderMarkdown(entry.content) : '<span class="typing"><span></span><span></span><span></span></span>';
   attachCopyHandlers(content);
 
-  body.append(role, think, content);
+  const actions = buildActions(entry);
+  body.append(role, think, content, actions);
   msg.append(avatar, body);
   msg._content = content;
   msg._think = think;
   msg._thinkBody = thinkBody;
+  msg._actions = actions;
+  msg._entry = entry;
   msg._started = !!entry.content;
   return msg;
 }
@@ -138,7 +207,7 @@ function createToolNode(entry) {
 
   const out = document.createElement("div");
   out.className = "tool__out";
-  if (entry.content) out.textContent = entry.content;
+  if (entry.content) setToolOutput(out, entry.content);
   else out.style.display = "none";
   card.append(out);
 
@@ -179,13 +248,36 @@ export function renderMessages(messages) {
   scrollToBottom();
 }
 
+let busy = false;
+
 export function setBusy(isBusy) {
+  busy = isBusy;
   promptInput.disabled = isBusy;
+  sendBtn.classList.toggle("is-stop", isBusy);
+  sendBtn.title = isBusy ? "Stop generating" : "Send";
   updateSendState();
 }
 
 export function updateSendState() {
-  sendBtn.disabled = promptInput.disabled || promptInput.value.trim().length === 0;
+  // While generating, the button is a Stop control and stays clickable.
+  sendBtn.disabled = busy ? false : promptInput.value.trim().length === 0;
+}
+
+// Blinking caret at the end of a streaming assistant message.
+export function setStreaming(contentEl, on) {
+  if (contentEl) contentEl.classList.toggle("streaming", on);
+}
+
+// Scroll-to-bottom pill: show it whenever the chat is scrolled away from the bottom.
+export function initScrollBottom() {
+  if (!chat || !scrollBottomBtn) return;
+  const update = () => {
+    const distance = chat.scrollHeight - chat.scrollTop - chat.clientHeight;
+    scrollBottomBtn.classList.toggle("show", distance > 160);
+  };
+  chat.addEventListener("scroll", update, { passive: true });
+  scrollBottomBtn.addEventListener("click", () => { chat.scrollTop = chat.scrollHeight; });
+  update();
 }
 
 export function setStatus({ ok, model, error, availableModels }, selectedModel) {

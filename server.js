@@ -91,20 +91,24 @@ function serveFile(req, res) {
   const mimeType = contentTypes[ext] || "application/octet-stream";
   applySecurityHeaders(res);
 
-  const cached = getCachedFile(safePath);
-  if (cached) {
-    if (req.headers["if-none-match"] === cached.etag) {
-      res.writeHead(304);
-      return res.end();
-    }
-    res.writeHead(200, { "Content-Type": mimeType, ETag: cached.etag });
-    return res.end(cached.data);
-  }
-
+  // Always stat first so an edited file on disk invalidates the in-memory cache.
   fs.stat(safePath, (err, stat) => {
     if (err || !stat.isFile()) {
       res.writeHead(404, { "Content-Type": "text/plain" });
       return res.end("404 Not Found");
+    }
+
+    const etag = `"${stat.mtimeMs.toString(36)}-${stat.size.toString(36)}"`;
+    const headers = { "Content-Type": mimeType, ETag: etag, "Cache-Control": "no-cache" };
+
+    const cached = getCachedFile(safePath);
+    if (cached && cached.etag === etag) {
+      if (req.headers["if-none-match"] === etag) {
+        res.writeHead(304, { ETag: etag, "Cache-Control": "no-cache" });
+        return res.end();
+      }
+      res.writeHead(200, headers);
+      return res.end(cached.data);
     }
 
     fs.readFile(safePath, (err, data) => {
@@ -113,8 +117,7 @@ function serveFile(req, res) {
         return res.end("500 Internal Server Error");
       }
       setCachedFile(safePath, data, stat);
-      const etag = `"${stat.mtimeMs.toString(36)}-${stat.size.toString(36)}"`;
-      res.writeHead(200, { "Content-Type": mimeType, ETag: etag });
+      res.writeHead(200, headers);
       res.end(data);
     });
   });
@@ -388,7 +391,9 @@ const server = http.createServer(async (req, res) => {
         const agentSystemPrompt =
           "You are an expert local assistant with access to system tools.\n" +
           "Rules:\n" +
-          "1. You have tools: web_fetch, run_command, read_file, write_file, list_directory, web_search.\n" +
+          "1. You have tools: web_fetch, run_command, read_file, write_file, list_directory, web_search, " +
+          "dns_lookup, port_scan, http_headers, tls_info, hash_text. The security tools (port_scan, dns_lookup, " +
+          "http_headers, tls_info) are for authorized red-team reconnaissance against a single target only.\n" +
           "2. To use a tool, use the EXACT format: (tool_name {\"arg\": \"val\"}).\n" +
           "3. IMMEDIATELY after writing the tool call, STOP. Do not hallucinate the result. The system will send it to you.\n" +
           "4. Answer precisely and without excuses.";

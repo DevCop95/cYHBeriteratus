@@ -2,19 +2,22 @@ import { getOrCreateSessionId, loadMessages, saveMessages, restoreSession, syncS
 import {
   chat, messagesEl, promptInput, sendBtn, chatForm, modelSelect,
   agentToggle, agentVal, roundsInput, newChatBtn,
-  showToast, hideWelcome,
+  showToast, hideWelcome, showWelcome,
   createMessageNode, updateBubble, updateThinking, appendNode, renderMessages,
-  setBusy, updateSendState, setStatus,
+  setBusy, updateSendState, setStatus, setToolOutput, setStreaming, initScrollBottom,
 } from "./modules/ui.js";
 import { processStream } from "./modules/stream.js";
 
-const CHAT_TIMEOUT_MS = 180000;
+// Abort only after this long with NO streaming activity (idle), not a hard total cap —
+// long multi-round agent responses keep going as long as they make progress.
+const IDLE_TIMEOUT_MS = 90000;
 
 let messages = [];
 let selectedModel = "";
 let agentEnabled = true;
 let isProcessing = false;
 let abortController = null;
+let abortReason = null; // "timeout" | "manual" | null
 const sessionId = getOrCreateSessionId();
 
 async function fetchStatus() {
@@ -56,6 +59,7 @@ async function sendMessage(content) {
   const contentEl = assistantNode._content;
 
   setBusy(true);
+  setStreaming(contentEl, true);
 
   let fullContent = "";
   let fullThinking = "";
@@ -64,7 +68,13 @@ async function sendMessage(content) {
   let lastToolNode = null;
 
   abortController = new AbortController();
-  const timeoutId = setTimeout(() => abortController.abort(), CHAT_TIMEOUT_MS);
+  abortReason = null;
+  let idleTimer = null;
+  const resetIdle = () => {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => { abortReason = "timeout"; abortController?.abort(); }, IDLE_TIMEOUT_MS);
+  };
+  resetIdle();
 
   try {
     const response = await fetch("/api/chat-agent", {
@@ -87,15 +97,18 @@ async function sendMessage(content) {
 
     await processStream(response, {
       onToken(token) {
+        resetIdle();
         fullContent += token;
         assistantEntry.content = fullContent;
         updateBubble(contentEl, fullContent);
       },
       onThinking(chunk) {
+        resetIdle();
         fullThinking += chunk;
         updateThinking(assistantNode, fullThinking);
       },
       onToolCall(event) {
+        resetIdle();
         toolUsed = true;
         lastToolEntry = { role: "tool_call", name: `${event.name} ${JSON.stringify(event.arguments)}`, time: Date.now() };
         messages.splice(messages.length - 1, 0, lastToolEntry);
@@ -104,10 +117,11 @@ async function sendMessage(content) {
         chat.scrollTop = chat.scrollHeight;
       },
       onToolResult(event) {
+        resetIdle();
         if (lastToolNode) {
           lastToolNode._state.className = `tool__state ${event.success ? "success" : "error"}`;
           lastToolNode._state.textContent = event.success ? "done" : "error";
-          lastToolNode._out.textContent = event.content;
+          setToolOutput(lastToolNode._out, event.content);
           lastToolNode._out.style.display = "";
         }
         if (lastToolEntry) {
@@ -133,26 +147,74 @@ async function sendMessage(content) {
     saveMessages(messages);
     syncSession(sessionId, messages);
   } catch (error) {
-    const idx = messages.indexOf(assistantEntry);
-    if (idx !== -1) messages.splice(idx, 1);
-    assistantNode.remove();
+    const isAbort = error.name === "AbortError";
 
-    const msg = error.name === "AbortError"
-      ? "Stopped. Timed out — retry or shorten the message."
-      : error.message;
-    const failEntry = { role: "assistant", content: `⚠ ${msg}`, time: Date.now() };
-    messages.push(failEntry);
+    if (fullContent.trim()) {
+      // Keep whatever was already streamed — don't discard a partial answer.
+      const note = isAbort && abortReason === "manual"
+        ? "\n\n*(stopped)*"
+        : isAbort
+          ? "\n\n*(interrupted — the model went idle; the reply above was cut off)*"
+          : `\n\n*(interrupted — ${error.message})*`;
+      assistantEntry.content = fullContent + note;
+      updateBubble(contentEl, assistantEntry.content);
+    } else {
+      // Nothing was streamed — drop the empty placeholder and show an error line.
+      const idx = messages.indexOf(assistantEntry);
+      if (idx !== -1) messages.splice(idx, 1);
+      assistantNode.remove();
+
+      const msg = isAbort
+        ? (abortReason === "timeout"
+            ? "The model went idle for too long and was stopped — try again or pick a faster model."
+            : "Stopped.")
+        : error.message;
+      const failEntry = { role: "assistant", content: `⚠ ${msg}`, time: Date.now() };
+      messages.push(failEntry);
+      const node = createMessageNode(failEntry);
+      node._content.innerHTML = `<span class="err">${node._content.textContent}</span>`;
+      appendNode(node);
+    }
+
     saveMessages(messages);
-    const node = createMessageNode(failEntry);
-    node._content.innerHTML = `<span class="err">${node._content.textContent}</span>`;
-    appendNode(node);
+    syncSession(sessionId, messages);
   } finally {
-    clearTimeout(timeoutId);
+    clearTimeout(idleTimer);
+    setStreaming(contentEl, false);
     setBusy(false);
     isProcessing = false;
     abortController = null;
     promptInput.focus();
   }
+}
+
+function regenerate() {
+  if (isProcessing) return;
+  let lastUserIdx = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "user") { lastUserIdx = i; break; }
+  }
+  if (lastUserIdx === -1) return;
+  const content = messages[lastUserIdx].content;
+  messages.splice(lastUserIdx); // drop the user msg + everything after (responses, tools)
+  saveMessages(messages);
+  renderMessages(messages);
+  sendMessage(content);
+}
+
+function editMessage(entry) {
+  if (isProcessing || !entry) return;
+  const idx = messages.indexOf(entry);
+  if (idx !== -1) {
+    messages.splice(idx); // remove this message and everything after it
+    saveMessages(messages);
+    renderMessages(messages);
+    if (messages.length === 0) showWelcome();
+  }
+  promptInput.value = entry.content || "";
+  autoGrow();
+  updateSendState();
+  promptInput.focus();
 }
 
 function submit() {
@@ -186,11 +248,25 @@ async function init() {
   await fetchStatus();
   setInterval(fetchStatus, 20000);
   updateSendState();
+  initScrollBottom();
   promptInput.focus();
 }
 
 // ── Events ──
 chatForm.addEventListener("submit", (e) => { e.preventDefault(); submit(); });
+
+// Composer button doubles as Stop while generating.
+sendBtn.addEventListener("click", (e) => {
+  if (isProcessing && abortController) {
+    e.preventDefault();
+    abortReason = "manual";
+    abortController.abort();
+  }
+});
+
+// Per-message actions (dispatched from the hover action bar).
+document.addEventListener("wg:regenerate", () => regenerate());
+document.addEventListener("wg:edit", (e) => editMessage(e.detail));
 
 promptInput.addEventListener("input", () => { autoGrow(); updateSendState(); });
 
@@ -200,6 +276,7 @@ promptInput.addEventListener("keydown", (e) => {
     submit();
   }
   if (e.key === "Escape" && isProcessing && abortController) {
+    abortReason = "manual";
     abortController.abort();
     showToast("Stopped");
   }

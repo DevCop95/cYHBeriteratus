@@ -124,6 +124,7 @@ dist
 # IDE and Editor folders
 .vscode/
 .idea/
+.claude/
 *.suo
 *.ntvs*
 *.njsproj
