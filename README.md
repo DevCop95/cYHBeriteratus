@@ -6,13 +6,26 @@ A local, ChatGPT-style web interface wired to `Ollama` that supports **Autonomou
 
 ## 🔥 Features
 
-- **ChatGPT-style UI (red-team theme):** A faithful ChatGPT clone — sidebar with **New chat**, centered conversation column with user bubbles and assistant replies, an empty-state welcome with suggestion cards, a rounded composer, model picker, agent toggle and live status — all in a dark black-and-red "red team" skin. Live Markdown rendering (headings, lists, links, code blocks with copy buttons). Keyboard: `Enter` sends, `Shift+Enter` newline, `Esc` stops a running request.
+- **ChatGPT / Claude-style UI (red-team theme):** A faithful clone — sidebar with **New chat**, centered conversation column with user bubbles and assistant replies, an empty-state welcome with suggestion cards, a rounded composer, model picker, agent toggle and live status — all in a dark black-and-red "red team" skin. Live Markdown rendering with **syntax-highlighted code blocks** (dependency-free, CSP-safe) and per-block **Wrap / Copy** actions.
+- **Chat interactions (ChatGPT / Claude-style):**
+  - **Send ↔ Stop button:** the composer button turns into a stop control while the model is generating.
+  - **Per-message hover actions:** **Copy** on any message, **Retry** to regenerate the last answer, **Edit** to pull a user message back into the composer.
+  - **Streaming caret:** a blinking cursor marks the live response as it streams.
+  - **Scroll-to-bottom pill:** appears when you scroll up during a long reply.
+  - **Clickable links** in tool output (XSS-safe).
+  - Keyboard: `Enter` sends, `Shift+Enter` newline, `Esc` stops a running request. Interrupting a response **keeps** whatever was already streamed instead of discarding it.
 - **Chain of Thought:** For reasoning models (Qwen3, etc.) the model's `thinking` stream is captured and shown in a collapsible **Show reasoning** block above the answer, instead of the UI appearing to hang.
 - **Agent Engine (Tools):** The model can run real actions on your machine when agent mode is enabled:
   - `web_fetch`: read articles from the internet (60s cache to avoid duplicate requests).
-  - `web_search`: search the web via DuckDuckGo (60s cache, redirect handling, link-extraction fallback).
-  - `read_file` / `write_file` / `list_directory`: operate on your filesystem (sandboxed).
+  - `web_search`: search DuckDuckGo — **decodes redirect links to clean URLs**, extracts real page titles, dedupes, numbers results, and accepts `max_results` (1–10).
+  - `read_file` / `write_file` / `list_directory`: operate on your filesystem (sandboxed to the project directory).
   - `run_command`: run commands in PowerShell (non-blocking, via `execFile`).
+- **Security recon tools (authorized red-team use):** single-target reconnaissance and analysis helpers:
+  - `dns_lookup`: resolve DNS records (A / AAAA / MX / TXT / NS / CNAME), with an OS-resolver fallback.
+  - `port_scan`: TCP connect scan of a **single host** (rejects CIDR ranges; ports, concurrency and per-port timeout are capped).
+  - `http_headers`: fetch response headers and produce a **security-header audit** (HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy) plus exposed server banners.
+  - `tls_info`: inspect a TLS certificate — issuer, validity, days-to-expiry, negotiated protocol and SANs.
+  - `hash_text`: compute md5 / sha1 / sha256 / sha512 digests.
 - **Empty-response fallback:** If the agent loop produces no visible output (e.g. a small or non-tool model that gets confused by the tool prompt), the server automatically answers once in plain chat mode so you always get a reply.
 - **Session persistence:** Conversation history is stored on the server (in memory, 24h TTL). Opening a new tab restores the context automatically from the server without losing any messages.
 - **Agent rounds control:** A numeric input (1–20) in the top bar controls how many tool rounds the agent may run per response, without editing files.
@@ -26,7 +39,9 @@ A local, ChatGPT-style web interface wired to `Ollama` that supports **Autonomou
 - **Efficient streaming:** The agent loop and chat mode share the same streaming core (`ollamaStreamRound`) — no duplicated code.
 - **Memory management:** Sliding history window (last 20 messages) to avoid context overflow in long sessions.
 - **Disconnect cleanup:** If the client closes the tab mid-response, the agent loop and the Ollama request are cancelled immediately.
-- **Built-in test suite:** 59 tests with `npm test` using the native Node.js runner — no external dependencies.
+- **Live-editable static assets:** the in-memory static file cache revalidates against each file's modification time and sends `Cache-Control: no-cache`, so edits to the UI show up on refresh without restarting the server.
+- **Idle-based request timeout:** the browser aborts a response only after a stretch of **no** streaming activity (not a hard total cap), so long multi-round agent answers keep going as long as they make progress.
+- **Built-in test suite:** 69 tests with `npm test` using the native Node.js runner — no external dependencies.
 
 ---
 
@@ -142,7 +157,7 @@ Once Ollama responds, refresh **http://127.0.0.1:4000** and the status flips to 
 npm test
 ```
 
-Covers: message validation, rate limiter, log levels, SSRF protection (20 `isPrivateIP` IPv4/IPv6 cases + 6 `web_fetch` guards), path sandboxing, file operations and command execution. No external dependencies — uses the native `node:test` runner.
+Covers: message validation, rate limiter, log levels, SSRF protection (20 `isPrivateIP` IPv4/IPv6 cases + 6 `web_fetch` guards), path sandboxing, file operations, command execution, and the security recon tools (hashing, port-spec parsing, single-host/port-cap guards, `web_search` contract). No external dependencies — uses the native `node:test` runner.
 
 ---
 
@@ -152,8 +167,8 @@ This project does not require `npm install` because it uses only native Node mod
 
 ```text
 cYHBeriteratus/
-├─ server.js              # HTTP routes, ollamaStreamRound, agent loop, sessions
-├─ tools.js               # Agent tools: sandboxing, cache, IPv4/IPv6 SSRF
+├─ server.js              # HTTP routes, ollamaStreamRound, agent loop, sessions, mtime static cache
+├─ tools.js               # Agent tools: files/web/command + security recon (dns/port/tls/headers/hash)
 ├─ src/
 │  ├─ config.js           # Global config and environment variables
 │  ├─ utils/
@@ -180,7 +195,8 @@ cYHBeriteratus/
 │  ├─ tools.isPrivateIP.test.js
 │  ├─ tools.ssrf.test.js
 │  ├─ tools.files.test.js
-│  └─ tools.command.test.js
+│  ├─ tools.command.test.js
+│  └─ tools.security.test.js
 ├─ detect-abliterated.py  # Detects abliterated models via Ollama's REST API
 └─ .env.example           # Environment variable template
 ```
@@ -196,6 +212,8 @@ In the top bar you'll find a clickable **Agent on/off** chip and a **rounds** in
 > **Note:** Tools only work with tool-calling models (see the note in *Download the models*). If a model can't use tools, the agent falls back to a plain answer automatically.
 
 > **Warning:** The model can modify files inside the project. Use it at your own risk!
+
+> **Authorized use only:** Unlike `web_fetch` (which blocks internal/SSRF targets), the security recon tools (`port_scan`, `dns_lookup`, `http_headers`, `tls_info`) reach whatever host you point them at — that is their purpose. Only run them against systems you own or are explicitly authorized to test. They are deliberately scoped to a **single target** (no CIDR/mass scanning) and cap ports, concurrency and timeouts.
 
 ## 🔍 Detect Abliterated Models
 
