@@ -53,7 +53,13 @@ function parsePorts(spec) {
 
 // Normalize user input to a bare hostname/IP (strip scheme, path, port, CIDR guard elsewhere).
 function extractHost(input) {
-  return String(input).trim().replace(/^[a-z]+:\/\//i, "").replace(/\/.*$/, "").split(":")[0];
+  let s = String(input == null ? "" : input).trim();
+  s = s.replace(/^[a-z]+:\/\//i, "").replace(/\/.*$/, "");
+  const bracketMatch = s.match(/^\[([^\]]+)\](?::\d+)?$/);
+  if (bracketMatch) return bracketMatch[1];
+  const colonCount = (s.match(/:/g) || []).length;
+  if (colonCount > 1) return s;
+  return s.split(":")[0];
 }
 
 // ── In-memory fetch/search cache (60s TTL) ──
@@ -91,7 +97,8 @@ function isPrivateIP(ip) {
 // Sandbox user-supplied paths (directory traversal protection)
 function resolveSafePath(userPath) {
   const resolved = path.resolve(WORKSPACE_DIR, userPath);
-  if (!resolved.startsWith(WORKSPACE_DIR)) {
+  const root = WORKSPACE_DIR.endsWith(path.sep) ? WORKSPACE_DIR : WORKSPACE_DIR + path.sep;
+  if (resolved !== WORKSPACE_DIR && !resolved.startsWith(root)) {
     throw new Error(`Access denied: path is outside the allowed sandbox (${WORKSPACE_DIR})`);
   }
   return resolved;
@@ -669,6 +676,19 @@ async function toolHttpHeaders(args) {
   }
   if (target.protocol !== "http:" && target.protocol !== "https:") {
     return { success: false, error: "Only http and https are allowed." };
+  }
+
+  // SSRF Protection: Resolve hostname to verify it does not point to a private IP
+  try {
+    const lookup = await dns.lookup(target.hostname);
+    if (isPrivateIP(lookup.address)) {
+      return { success: false, error: "Blocked: attempt to access internal network (SSRF)" };
+    }
+  } catch (err) {
+    if (isPrivateIP(target.hostname)) {
+      return { success: false, error: "Blocked: attempt to access internal network (SSRF)" };
+    }
+    return { success: false, error: `Cannot resolve host: ${err.message}` };
   }
 
   return await new Promise((resolve) => {

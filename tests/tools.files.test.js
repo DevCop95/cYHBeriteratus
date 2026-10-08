@@ -25,8 +25,20 @@ test("read_file blocks path traversal (../../)", async () => {
   assert.equal(r.success, false);
 });
 
+test("read_file blocks sibling directory traversal", async () => {
+  const sibling = `../${path.basename(path.resolve(__dirname, ".."))}_fake/evil.txt`;
+  const r = await executeTool("read_file", { file_path: sibling });
+  assert.equal(r.success, false);
+});
+
 test("write_file blocks path traversal (../../)", async () => {
   const r = await executeTool("write_file", { file_path: "../../tmp/evil.txt", content: "x" });
+  assert.equal(r.success, false);
+});
+
+test("write_file blocks sibling directory traversal", async () => {
+  const sibling = `../${path.basename(path.resolve(__dirname, ".."))}_fake/evil.txt`;
+  const r = await executeTool("write_file", { file_path: sibling, content: "x" });
   assert.equal(r.success, false);
 });
 

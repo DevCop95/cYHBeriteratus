@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-red.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Dependencies: 0](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](package.json)
-[![Tests](https://img.shields.io/badge/tests-69%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-73%20passing-brightgreen.svg)](tests/)
 
 A local, ChatGPT-style web interface wired to `Ollama` that supports **Autonomous Agents (Tool Calling)**, **abliterated models** (uncensored), smooth real-time streaming, and a secure "Zero-Dependency" architecture (no external npm modules).
 
@@ -46,7 +46,7 @@ A local, ChatGPT-style web interface wired to `Ollama` that supports **Autonomou
 - **Disconnect cleanup:** If the client closes the tab mid-response, the agent loop and the Ollama request are cancelled immediately.
 - **Live-editable static assets:** the in-memory static file cache revalidates against each file's modification time and sends `Cache-Control: no-cache`, so edits to the UI show up on refresh without restarting the server.
 - **Idle-based request timeout:** the browser aborts a response only after a stretch of **no** streaming activity (not a hard total cap), so long multi-round agent answers keep going as long as they make progress.
-- **Built-in test suite:** 69 tests with `npm test` using the native Node.js runner — no external dependencies.
+- **Built-in test suite:** 73 tests with `npm test` using the native Node.js runner — no external dependencies.
 
 ---
 

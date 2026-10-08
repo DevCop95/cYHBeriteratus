@@ -81,8 +81,9 @@ function serveFile(req, res) {
   const reqUrl = new URL(req.url, `http://${req.headers.host}`);
   const pathname = reqUrl.pathname === "/" ? "/index.html" : reqUrl.pathname;
   const safePath = path.normalize(path.join(config.PUBLIC_DIR, pathname));
+  const publicRoot = config.PUBLIC_DIR.endsWith(path.sep) ? config.PUBLIC_DIR : config.PUBLIC_DIR + path.sep;
 
-  if (!safePath.startsWith(config.PUBLIC_DIR)) {
+  if (safePath !== config.PUBLIC_DIR && !safePath.startsWith(publicRoot)) {
     sendJson(res, 403, { error: "Path not allowed." });
     return;
   }

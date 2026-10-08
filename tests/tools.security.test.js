@@ -32,6 +32,13 @@ test("extractHost strips scheme, port and path", () => {
   assert.strictEqual(extractHost("HTTP://Example.com/"), "Example.com");
 });
 
+test("extractHost handles IPv6 formats", () => {
+  assert.strictEqual(extractHost("[::1]:8080"), "::1");
+  assert.strictEqual(extractHost("[::1]"), "::1");
+  assert.strictEqual(extractHost("::1"), "::1");
+  assert.strictEqual(extractHost("2001:db8::1"), "2001:db8::1");
+});
+
 test("port_scan refuses CIDR ranges", async () => {
   const res = await executeTool("port_scan", { host: "10.0.0.0/24" });
   assert.strictEqual(res.success, false);
@@ -47,6 +54,16 @@ test("port_scan caps the number of ports", async () => {
 test("http_headers rejects non-http protocols", async () => {
   const res = await executeTool("http_headers", { url: "ftp://example.com" });
   assert.strictEqual(res.success, false);
+});
+
+test("http_headers blocks loopback and private IP (SSRF)", async () => {
+  const loopback = await executeTool("http_headers", { url: "http://127.0.0.1:8080/" });
+  assert.strictEqual(loopback.success, false);
+  assert.match(loopback.error, /SSRF|internal/i);
+
+  const privateIp = await executeTool("http_headers", { url: "http://10.0.0.1/" });
+  assert.strictEqual(privateIp.success, false);
+  assert.match(privateIp.error, /SSRF|internal/i);
 });
 
 test("web_search requires a query", async () => {
