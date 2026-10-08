@@ -14,7 +14,7 @@ const IDLE_TIMEOUT_MS = 90000;
 
 let messages = [];
 let selectedModel = "";
-let agentEnabled = true;
+let agentEnabled = localStorage.getItem("wg_agent") !== "false";
 let isProcessing = false;
 let abortController = null;
 let abortReason = null; // "timeout" | "manual" | null
@@ -246,7 +246,8 @@ async function init() {
   messages = serverMessages ?? stored;
   renderMessages(messages);
   await fetchStatus();
-  setInterval(fetchStatus, 20000);
+  agentToggle.setAttribute("aria-pressed", String(agentEnabled));
+  agentVal.textContent = agentEnabled ? "on" : "off";
   updateSendState();
   initScrollBottom();
   promptInput.focus();
@@ -284,6 +285,7 @@ promptInput.addEventListener("keydown", (e) => {
 
 agentToggle.addEventListener("click", () => {
   agentEnabled = !agentEnabled;
+  try { localStorage.setItem("wg_agent", String(agentEnabled)); } catch {}
   agentToggle.setAttribute("aria-pressed", String(agentEnabled));
   agentVal.textContent = agentEnabled ? "on" : "off";
 });

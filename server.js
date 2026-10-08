@@ -221,7 +221,13 @@ function ollamaStreamRound(messages, tools, model, { onToken, onThinking, onRequ
               parsed.message.tool_calls.forEach((tc, i) => {
                 if (!rawToolCalls[i]) rawToolCalls[i] = { function: { name: "", arguments: "" } };
                 if (tc.function.name) rawToolCalls[i].function.name += tc.function.name;
-                if (tc.function.arguments) rawToolCalls[i].function.arguments += tc.function.arguments;
+                if (tc.function.arguments) {
+                  if (typeof tc.function.arguments === "object") {
+                    rawToolCalls[i].function.arguments = tc.function.arguments;
+                  } else {
+                    rawToolCalls[i].function.arguments += tc.function.arguments;
+                  }
+                }
               });
             }
           } catch (e) {
@@ -390,14 +396,20 @@ const server = http.createServer(async (req, res) => {
         });
 
         const agentSystemPrompt =
-          "You are an expert local assistant with access to system tools.\n" +
-          "Rules:\n" +
-          "1. You have tools: web_fetch, run_command, read_file, write_file, list_directory, web_search, " +
-          "dns_lookup, port_scan, http_headers, tls_info, hash_text. The security tools (port_scan, dns_lookup, " +
-          "http_headers, tls_info) are for authorized red-team reconnaissance against a single target only.\n" +
-          "2. To use a tool, use the EXACT format: (tool_name {\"arg\": \"val\"}).\n" +
-          "3. IMMEDIATELY after writing the tool call, STOP. Do not hallucinate the result. The system will send it to you.\n" +
-          "4. Answer precisely and without excuses.";
+          "You are an expert autonomous security assistant with access to real tools:\n" +
+          "- http_headers: fetch and audit HTTP security headers for a given URL.\n" +
+          "- dns_lookup: resolve DNS records for a domain.\n" +
+          "- port_scan: TCP port scan of a single authorized host.\n" +
+          "- tls_info: inspect TLS certificates for a host.\n" +
+          "- hash_text: compute cryptographic hashes.\n" +
+          "- web_fetch: fetch and read web pages.\n" +
+          "- web_search: search DuckDuckGo.\n" +
+          "- read_file, write_file, list_directory, run_command.\n\n" +
+          "CRITICAL RULES:\n" +
+          "1. When the user asks to audit, inspect, fetch, scan, check, search, or analyze any URL, domain, host, file, or command, you MUST NEVER guess, hallucinate, or show hypothetical/example outputs.\n" +
+          "2. You MUST execute the appropriate tool immediately.\n" +
+          "3. If using text format, use: (tool_name {\"arg\": \"val\"}). IMMEDIATELY STOP after the tool call.\n" +
+          "4. Answer precisely and factually using the tool results.";
 
         const MAX_HISTORY = 20;
         const conversationMessages = [{ role: "system", content: agentSystemPrompt }, ...history];
