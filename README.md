@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-red.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Dependencies: 0](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](package.json)
-[![Tests](https://img.shields.io/badge/tests-73%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-74%20passing-brightgreen.svg)](tests/)
 
 A local, ChatGPT-style web interface wired to `Ollama` that supports **Autonomous Agents (Tool Calling)**, **abliterated models** (uncensored), smooth real-time streaming, and a secure "Zero-Dependency" architecture (no external npm modules).
 
@@ -17,11 +17,13 @@ A local, ChatGPT-style web interface wired to `Ollama` that supports **Autonomou
   - **Per-message hover actions:** **Copy** on any message, **Retry** to regenerate the last answer, **Edit** to pull a user message back into the composer.
   - **Streaming caret:** a blinking cursor marks the live response as it streams.
   - **Scroll-to-bottom pill:** appears when you scroll up during a long reply.
+  - **Collapsible Tool Cards (Accordion):** Tool executions render as sleek inline chips with live state (`running…`, `done`, `error`) and a toggle indicator (`▸` / `▾`). Outputs are collapsed by default to keep the chat clean; click the card header to expand or collapse.
+  - **Sleek Dark Scrollbars:** Global thin, dark scrollbars (`::-webkit-scrollbar` & `scrollbar-width: thin`) replace harsh OS-native white scrollbars across all components.
   - **Clickable links** in tool output (XSS-safe).
   - Keyboard: `Enter` sends, `Shift+Enter` newline, `Esc` stops a running request. Interrupting a response **keeps** whatever was already streamed instead of discarding it.
 - **Chain of Thought:** For reasoning models (Qwen3, etc.) the model's `thinking` stream is captured and shown in a collapsible **Show reasoning** block above the answer, instead of the UI appearing to hang.
 - **Agent Engine (Tools):** The model can run real actions on your machine when agent mode is enabled:
-  - `web_fetch`: read articles from the internet (60s cache to avoid duplicate requests).
+  - `web_fetch`: read articles from the internet (60s cache to avoid duplicate requests, with token-efficient HTML sanitization that strips layout tags and whitespace padding).
   - `web_search`: search DuckDuckGo — **decodes redirect links to clean URLs**, extracts real page titles, dedupes, numbers results, and accepts `max_results` (1–10).
   - `read_file` / `write_file` / `list_directory`: operate on your filesystem (sandboxed to the project directory).
   - `run_command`: run commands in PowerShell (non-blocking, via `execFile`).
@@ -46,7 +48,7 @@ A local, ChatGPT-style web interface wired to `Ollama` that supports **Autonomou
 - **Disconnect cleanup:** If the client closes the tab mid-response, the agent loop and the Ollama request are cancelled immediately.
 - **Live-editable static assets:** the in-memory static file cache revalidates against each file's modification time and sends `Cache-Control: no-cache`, so edits to the UI show up on refresh without restarting the server.
 - **Idle-based request timeout:** the browser aborts a response only after a stretch of **no** streaming activity (not a hard total cap), so long multi-round agent answers keep going as long as they make progress.
-- **Built-in test suite:** 73 tests with `npm test` using the native Node.js runner — no external dependencies.
+- **Built-in test suite:** 74 tests with `npm test` using the native Node.js runner — no external dependencies.
 
 ---
 
@@ -162,7 +164,7 @@ Once Ollama responds, refresh **http://127.0.0.1:4000** and the status flips to 
 npm test
 ```
 
-Covers: message validation, rate limiter, log levels, SSRF protection (20 `isPrivateIP` IPv4/IPv6 cases + 6 `web_fetch` guards), path sandboxing, file operations, command execution, and the security recon tools (hashing, port-spec parsing, single-host/port-cap guards, `web_search` contract). No external dependencies — uses the native `node:test` runner.
+Covers: message validation, rate limiter, log levels, SSRF protection (20 `isPrivateIP` IPv4/IPv6 cases + 6 `web_fetch` guards), path sandboxing, file operations, command execution, security recon tools (hashing, port-spec parsing, single-host/port-cap guards, `web_search` contract), and HTML sanitization / whitespace hygiene. No external dependencies — uses the native `node:test` runner.
 
 ---
 
@@ -207,10 +209,10 @@ cYHBeriteratus/
 ```
 
 ## 🔒 Agent Mode (Tool Calling)
-In the top bar you'll find a clickable **Agent on/off** chip and a **rounds** input (1–20).
+In the top bar you'll find a clickable **Agent on/off** chip (enabled by default and persisted in `localStorage`) and a **rounds** input (1–20).
 
 - **off:** The model acts as a standard chatbot (normal, fast text responses).
-- **on:** The model reasons before answering and may decide to use system tools (search the web, run scripts, etc.) to fulfill your request. Tool executions appear as inline tool cards, and reasoning models show their thinking in the collapsible **Show reasoning** block.
+- **on:** The model reasons before answering and may decide to use system tools (search the web, run scripts, inspect headers, etc.) to fulfill your request. Tool executions appear as compact, collapsible accordion cards (`▸` / `▾`) that stay collapsed upon completion to prevent clutter, and reasoning models show their thinking in the collapsible **Show reasoning** block.
 
 > **Tip:** Agent mode needs a tool-calling model (e.g. `huihui_ai/qwen3-abliterated:8b`). With a chat-only model, turn Agent **off** for the most reliable replies.
 
