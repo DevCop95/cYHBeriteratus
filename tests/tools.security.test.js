@@ -76,3 +76,36 @@ test("web_search definition exposes max_results", () => {
   const def = toolDefinitions.find((d) => d.function.name === "web_search");
   assert.ok(def.function.parameters.properties.max_results);
 });
+
+test("stripHtml removes nav, scripts, styles, svgs, and collapses excessive blank lines", () => {
+  const { stripHtml } = require("../tools");
+  const sample = `
+    <html>
+      <head><style>body { color: red; }</style></head>
+      <body>
+        <nav><a href="/home">Home</a> <svg><circle /></svg></nav>
+        <header><h1>Site Header</h1></header>
+        <!-- A comment -->
+        <div class="content">
+          <p>First paragraph with &amp; entity &quot;quotes&quot; and &#39;apostrophe&#39;.</p>
+          
+          
+          <p>Second paragraph after multiple blank lines.</p>
+        </div>
+        <footer>Copyright 2026</footer>
+        <script>alert(1);</script>
+      </body>
+    </html>
+  `;
+  const cleaned = stripHtml(sample);
+  assert.ok(!cleaned.includes("Site Header"), "Header should be removed");
+  assert.ok(!cleaned.includes("Home"), "Nav should be removed");
+  assert.ok(!cleaned.includes("alert(1)"), "Script should be removed");
+  assert.ok(!cleaned.includes("color: red"), "Style should be removed");
+  assert.ok(!cleaned.includes("Copyright"), "Footer should be removed");
+  assert.ok(cleaned.includes("First paragraph with & entity \"quotes\" and 'apostrophe'."));
+  assert.ok(cleaned.includes("Second paragraph"));
+  assert.ok(!/\n{3,}/.test(cleaned), "Should have no triple newlines");
+  assert.ok(!/^[ \t]+$/m.test(cleaned), "Should have no blank lines containing only spaces");
+});
+

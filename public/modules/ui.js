@@ -195,6 +195,7 @@ function createToolNode(entry) {
   card.className = "tool";
   const head = document.createElement("div");
   head.className = "tool__head";
+  head.title = "Click to toggle tool output";
   const running = entry.role === "tool_call";
   const name = document.createElement("span");
   name.className = "tool__name";
@@ -202,19 +203,31 @@ function createToolNode(entry) {
   const state = document.createElement("span");
   state.className = `tool__state ${running ? "spinner" : entry.success ? "success" : "error"}`;
   state.textContent = running ? "running…" : entry.success ? "done" : "error";
-  head.append(name, state);
+  const toggle = document.createElement("span");
+  toggle.className = "tool__toggle";
+  toggle.textContent = "▸";
+  head.append(name, state, toggle);
   card.append(head);
 
   const out = document.createElement("div");
   out.className = "tool__out";
+  out.style.display = "none";
   if (entry.content) setToolOutput(out, entry.content);
-  else out.style.display = "none";
   card.append(out);
+
+  head.addEventListener("click", () => {
+    const isHidden = out.style.display === "none";
+    out.style.display = isHidden ? "block" : "none";
+    toggle.textContent = isHidden ? "▾" : "▸";
+    card.classList.toggle("is-open", isHidden);
+  });
 
   body.append(card);
   msg.append(avatar, body);
   msg._state = state;
   msg._out = out;
+  msg._toggle = toggle;
+  msg._head = head;
   return msg;
 }
 

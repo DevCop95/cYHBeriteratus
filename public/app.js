@@ -122,7 +122,8 @@ async function sendMessage(content) {
           lastToolNode._state.className = `tool__state ${event.success ? "success" : "error"}`;
           lastToolNode._state.textContent = event.success ? "done" : "error";
           setToolOutput(lastToolNode._out, event.content);
-          lastToolNode._out.style.display = "";
+          lastToolNode._out.style.display = "none";
+          if (lastToolNode._toggle) lastToolNode._toggle.textContent = "▸";
         }
         if (lastToolEntry) {
           lastToolEntry.role = "tool_result";
