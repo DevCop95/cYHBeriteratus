@@ -320,17 +320,39 @@ const toolDefinitions = [
 // ──────────────────────────────────────────────
 
 function stripHtml(html) {
-  let text = html.replace(/<script[\s\S]*?<\/script>/gi, "");
+  // 1. Prefer semantic content containers (<main> or <article>) if present
+  const mainMatch = html.match(/<main[\s\S]*?<\/main>/i) || html.match(/<article[\s\S]*?<\/article>/i);
+  let text = mainMatch ? mainMatch[0] : html;
+
+  // 2. Strip non-content, hidden elements, interactive controls, and modal templates
+  text = text.replace(/<script[\s\S]*?<\/script>/gi, "");
   text = text.replace(/<style[\s\S]*?<\/style>/gi, "");
   text = text.replace(/<svg[\s\S]*?<\/svg>/gi, "");
   text = text.replace(/<noscript[\s\S]*?<\/noscript>/gi, "");
   text = text.replace(/<nav[\s\S]*?<\/nav>/gi, "");
   text = text.replace(/<header[\s\S]*?<\/header>/gi, "");
   text = text.replace(/<footer[\s\S]*?<\/footer>/gi, "");
+  text = text.replace(/<aside[\s\S]*?<\/aside>/gi, "");
+  text = text.replace(/<dialog[\s\S]*?<\/dialog>/gi, "");
+  text = text.replace(/<form[\s\S]*?<\/form>/gi, "");
+  text = text.replace(/<button[\s\S]*?<\/button>/gi, "");
+  text = text.replace(/<template[\s\S]*?<\/template>/gi, "");
+  text = text.replace(/<details[\s\S]*?<\/details>/gi, "");
+  text = text.replace(/<include-fragment[\s\S]*?<\/include-fragment>/gi, "");
   text = text.replace(/<!--[\s\S]*?-->/g, "");
-  text = text.replace(/<\/(?:p|div|h[1-6]|li|tr|article|section|pre|blockquote)>/gi, "\n");
+
+  // 3. Strip elements explicitly marked as hidden or aria-hidden
+  text = text.replace(/<[a-z0-9_-]+[^>]*\b(?:hidden|aria-hidden="true")[^>]*>[\s\S]*?<\/[a-z0-9_-]+>/gi, "");
+
+  // 4. Block boundaries to newlines
+  text = text.replace(/<\/(?:p|div|h[1-6]|li|tr|article|section|pre|blockquote|table)>/gi, "\n");
   text = text.replace(/<br\s*\/?>/gi, "\n");
+  text = text.replace(/<hr\s*\/?>/gi, "\n---\n");
+
+  // 5. Strip remaining tags
   text = text.replace(/<[^>]+>/g, " ");
+
+  // 6. Decode entities
   text = text
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
@@ -342,6 +364,8 @@ function stripHtml(html) {
     .replace(/&nbsp;/g, " ")
     .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
     .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+
+  // 7. Whitespace hygiene: trim lines, deduplicate blank lines
   return text
     .split("\n")
     .map((line) => line.replace(/[ \t]+/g, " ").trim())

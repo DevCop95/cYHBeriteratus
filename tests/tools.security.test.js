@@ -86,12 +86,16 @@ test("stripHtml removes nav, scripts, styles, svgs, and collapses excessive blan
         <nav><a href="/home">Home</a> <svg><circle /></svg></nav>
         <header><h1>Site Header</h1></header>
         <!-- A comment -->
-        <div class="content">
-          <p>First paragraph with &amp; entity &quot;quotes&quot; and &#39;apostrophe&#39;.</p>
-          
-          
-          <p>Second paragraph after multiple blank lines.</p>
-        </div>
+        <main>
+          <div class="content">
+            <p>First paragraph with &amp; entity &quot;quotes&quot; and &#39;apostrophe&#39;.</p>
+            <button>Click me</button>
+            <form><input type="hidden" name="token" />Submit</form>
+            <dialog>Modal prompt</dialog>
+            <div hidden>Error: Something went wrong</div>
+            <p>Second paragraph after multiple blank lines.</p>
+          </div>
+        </main>
         <footer>Copyright 2026</footer>
         <script>alert(1);</script>
       </body>
@@ -103,6 +107,10 @@ test("stripHtml removes nav, scripts, styles, svgs, and collapses excessive blan
   assert.ok(!cleaned.includes("alert(1)"), "Script should be removed");
   assert.ok(!cleaned.includes("color: red"), "Style should be removed");
   assert.ok(!cleaned.includes("Copyright"), "Footer should be removed");
+  assert.ok(!cleaned.includes("Click me"), "Button text should be removed");
+  assert.ok(!cleaned.includes("Submit"), "Form text should be removed");
+  assert.ok(!cleaned.includes("Modal prompt"), "Dialog text should be removed");
+  assert.ok(!cleaned.includes("Something went wrong"), "Hidden error text should be removed");
   assert.ok(cleaned.includes("First paragraph with & entity \"quotes\" and 'apostrophe'."));
   assert.ok(cleaned.includes("Second paragraph"));
   assert.ok(!/\n{3,}/.test(cleaned), "Should have no triple newlines");
