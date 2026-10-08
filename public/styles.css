@@ -592,6 +592,7 @@ button { color: inherit; }
   margin-top: 6px;
   opacity: 0;
   transition: opacity 0.15s;
+  user-select: none;
 }
 .msg:hover .msg__actions,
 .msg__actions:focus-within { opacity: 1; }
@@ -608,6 +609,7 @@ button { color: inherit; }
   padding: 4px 8px;
   border-radius: 7px;
   cursor: pointer;
+  user-select: none;
   transition: color 0.15s, background 0.15s;
 }
 .msg-action:hover { color: var(--text); background: var(--panel); }

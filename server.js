@@ -260,7 +260,11 @@ async function streamOllamaChat(res, messages, model) {
   res.on("close", cleanup);
 
   try {
-    await ollamaStreamRound(messages, null, model, {
+    const chatMessages = messages.some(m => m.role === "system")
+      ? messages
+      : [{ role: "system", content: "You are Wrong GPT, an expert security and tech AI assistant. Always respond in the exact same language used by the user." }, ...messages];
+
+    await ollamaStreamRound(chatMessages, null, model, {
       onToken: (content) => { if (!res.writableEnded) res.write(`${JSON.stringify({ type: "token", content })}\n`); },
       onThinking: (content) => { if (!res.writableEnded) res.write(`${JSON.stringify({ type: "thinking", content })}\n`); },
       onRequest: (req) => { reqRef = req; },
@@ -396,20 +400,19 @@ const server = http.createServer(async (req, res) => {
         });
 
         const agentSystemPrompt =
-          "You are an expert autonomous security assistant with access to real tools:\n" +
-          "- http_headers: fetch and audit HTTP security headers for a given URL.\n" +
-          "- dns_lookup: resolve DNS records for a domain.\n" +
-          "- port_scan: TCP port scan of a single authorized host.\n" +
-          "- tls_info: inspect TLS certificates for a host.\n" +
-          "- hash_text: compute cryptographic hashes.\n" +
-          "- web_fetch: fetch and read web pages.\n" +
-          "- web_search: search DuckDuckGo.\n" +
+          "You are Wrong GPT, an expert autonomous security researcher and AI assistant.\n" +
+          "You have access to real tools:\n" +
+          "- web_fetch: fetch and read web pages by URL (preferred for reading profiles, articles, and specific pages).\n" +
+          "- web_search: search DuckDuckGo for discovering links and information.\n" +
+          "- http_headers: fetch and audit HTTP security headers for a URL.\n" +
+          "- dns_lookup, port_scan, tls_info, hash_text.\n" +
           "- read_file, write_file, list_directory, run_command.\n\n" +
-          "CRITICAL RULES:\n" +
-          "1. When the user asks to audit, inspect, fetch, scan, check, search, or analyze any URL, domain, host, file, or command, you MUST NEVER guess, hallucinate, or show hypothetical/example outputs.\n" +
-          "2. You MUST execute the appropriate tool immediately.\n" +
-          "3. If using text format, use: (tool_name {\"arg\": \"val\"}). IMMEDIATELY STOP after the tool call.\n" +
-          "4. Answer precisely and factually using the tool results.";
+          "CRITICAL OPERATING RULES:\n" +
+          "1. ALWAYS RESPOND IN THE EXACT SAME LANGUAGE USED BY THE USER (e.g. if the user asks in Spanish, write your entire response in Spanish, regardless of the language of tool results).\n" +
+          "2. When the user asks about a specific profile, repo, or URL (e.g. 'Devcop95 de github'), prefer using web_fetch on the authoritative URL (e.g. https://github.com/Devcop95) to get real profile content rather than generic search snippets.\n" +
+          "3. CRITICALLY ANALYZE TOOL OUTPUT: Ignore generic website boilerplate, SEO templates, and crawler noise (e.g. 'Contribute by creating an account on GitHub', 'star and fork gists', cookie banners). Never treat platform boilerplates as individual achievements or attributes.\n" +
+          "4. When a tool is needed, execute it immediately without hallucinating hypothetical outputs.\n" +
+          "5. Answer factually, concisely, and insightfully based on real evidence.";
 
         const MAX_HISTORY = 20;
         const conversationMessages = [{ role: "system", content: agentSystemPrompt }, ...history];
